@@ -28,13 +28,14 @@ for i=1:n
     N(i).type=-1; % 普通节点 -1 事件节点(EN 0) 中继节点（RP 1） 监督节点（IN 2)
     N(i).steps=0; % 跳数
     N(i).E=Eo; % 初始能量
-    N(i).IN=0; % 该节点所属的监督节点
+    N(i).IN=[]; % 该节点所属的监督节点(可能有一个以上)
     N(i).INn=0; % 如果是监督节点，该节点所监督的节点 
     N(i).credit=1; % 信誉度
     N(i).nb=[]; % Rc范围内邻居
     N(i).nbhf=[]; % Rc/2范围内邻居
     N(i).d=0; % 到SN的距离
     N(i).path=[]; % 到SN的路径
+    N(i).INpath=[]; % IN路径
 end
 %% 初始化2
 for i=1:n
@@ -59,6 +60,11 @@ for i=1:n
     end
     N(i).steps=ceil(N(i).d/Rc);
 end
+N(n+1).x=0;
+N(n+1).y=0;
+N(n+1).nb=onestep;
+N(n+1).type=2;
+N(n+1).steps=0;
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
 %% 寻找每一个节点的下一跳节点(倒序)
@@ -78,23 +84,27 @@ for ep=1:1
     ylim([-(sqrt(r)+10) sqrt(r)+10])
     axis equal
     scatter(0,0,'r');% SN
+    
     for i=1:n
         if N(i).type==0
             scatter(N(i).x,N(i).y,'g');
             c = num2str(i);
             text(N(i).x,N(i).y,c);
         else
+            N(i).type=-1;
             scatter(N(i).x,N(i).y,'b');
         end
+        
     end
     colorselect=0;
-    color={'k','g','r','c','b'};
+    color={'k','r','c','b'};
     colorlen=size(color,2);
     linetypeselect=0;
     linetype={'-','--','-.'};
     linetypelen=size(linetype,2);
     for i=EN
         N(i).path=[]; % 重置path
+        
         curnode=i;
         while(curnode~=-1) % -1代表SN
             nbs=N(curnode).nb;
@@ -163,6 +173,7 @@ for ep=1:1
                 curnode=-1;
             end
         end
+        N(i).path=[N(i).path,n+1];
         preIN=i;
         preRP=i;
         allpath=[i,N(i).path];
@@ -170,52 +181,34 @@ for ep=1:1
             rpnbs=N(rp).nb;
             Win=[];
             INcds=[];
-            if rp==allpath(end) % 最后一个节点
-                if rp==i % 开始
-                    targetnodes=intersect(onestep,rpnbs);
+            if rp==i % 开始
+                targetnodes=intersect(rpnbs,N(allpath(2)).nb);
+            elseif rp==n+1 % 到达SN
+                if sum(find(rpnbs==preIN))~=0 % 如果上一个IN已经是一跳节点了
+                    N(i).INpath=[N(i).INpath,n+1];
+                    plot([N(preIN).x,0],[N(preIN).y,0],[linetypestr,'m']);
+                    hold on;
+                    break;
                 else
-                    targetnodes=intersect(intersect(onestep,rpnbs),N(preIN).nb);
+                    targetnodes=intersect(rpnbs,N(preIN).nb);
                 end
-
             else
-                if rp==i % 开始
-                    targetnodes=intersect(rpnbs,N(allpath(2)).nb);
-                else
-                    targetnodes=intersect(N(preIN).nb,rpnbs);
-                end
+                targetnodes=intersect(rpnbs,N(preIN).nb);
             end
-            for j=targetnodes
-                if N(j).type==-1
-                    Win=[Win,N(j).credit];
-                    INcds=[INcds,j];
-                end
-            end
-            [vin,idxin]=max(Win);
-            idxinmaxs=find(Win==vin); % 对符合要求的候选监督节点进一步筛选
-            nextstepinmin=inf;
-            if size(idxinmaxs,2)>1
-                for j=idxinmaxs % 找出下一跳邻居最多的候选监督节点
-                    nextstepintmp=N(INcds(j)).steps;
-%                     for k=N(targetnodes(j)).nb
-%                         if N(k).steps==N(rp).steps-1
-%                             nextstepintmp=nextstepintmp+1;
-%                         end
-                    if nextstepintmp<nextstepinmin
-                        idxin=j;
-                        nextstepinmin=nextstepintmp;
-                    end
-                end
-            end
+%             if sum(targetnodes)==0
+%                 
+%             end
+            [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp);
             plot([N(INcds(idxin)).x,N(preIN).x],[N(INcds(idxin)).y,N(preIN).y],[linetypestr,'m']);
+            plot([N(INcds(idxin)).x,N(rp).x],[N(INcds(idxin)).y,N(rp).y],['-','g']);
             text(N(INcds(idxin)).x,N(INcds(idxin)).y,num2str(INcds(idxin)));
             hold on;
+            N(i).INpath=[N(i).INpath,INcds(idxin)];
             N(INcds(idxin)).type=2;
             N(rp).IN=INcds(idxin);
             preIN=N(rp).IN;
-            preRP=i;
+            preRP=rp;
         end
-        plot([N(INcds(idxin)).x,0],[N(INcds(idxin)).y,0],[linetypestr,'m']);
-        hold on;
         colorselect=colorselect+1;
         linetypeselect=linetypeselect+1;
     end
