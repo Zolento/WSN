@@ -55,7 +55,7 @@ end
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
 %% 寻找每一个节点的下一跳节点(倒序)
-for ep=1:1
+for ep=1:10
     figure(ep);
     hold on;
     para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
@@ -91,31 +91,42 @@ for ep=1:1
         while(curnode~=-1) % -1代表SN
             W=[];
             nbs=N(curnode).nb;
+            foundIN=0; % 判断有没有找到IN
             if N(curnode).steps~=1
-                for j=nbs
-                    if N(j).E>0%&&N(j).type~=0
+                for j=nbs %1.找出路由节点
+                    if N(j).E>0&&N(j).type~=2 % 监督节点不作为路由
                         weight=a*N(j).steps+b*Eo/N(j).E;
                         W=[W,weight];
                     else
                         W=[W,inf];
                     end
+%                     if N(j).type==2
+%                         foundIN=1;
+%                     end
                 end
                 [v,idx]=min(W);
-                idxmins=find(W==v);
+                idxmins=find(W==v); % 对符合最小权值的路由节点进一步筛选
                 nextstepnbmax=inf;
-                for j=idxmins
-                    nextstepnbtmp=0;
-                    for k=N(nbs(j)).nb
-                        if N(k).steps==N(i).steps-1
-                            nextstepnbtmp=nextstepnbtmp+1;
-                        end
-                        if nextstepnbtmp>nextstepnbmax
-                            idx=j;
-                            nextstepnbmax=nextstepnbtmp;
-                            v=W(idx);
+                if size(idxmins,2)>1
+                    for j=idxmins % 找出下一跳邻居最多的最小权值路由节点
+                        nextstepnbtmp=0;
+                        for k=N(nbs(j)).nb
+                            if N(k).steps==N(i).steps-1
+                                nextstepnbtmp=nextstepnbtmp+1;
+                            end
+                            if nextstepnbtmp>nextstepnbmax
+                                idx=j;
+                                nextstepnbmax=nextstepnbtmp;
+                                v=W(idx);
+                            end
                         end
                     end
-                end    
+                end
+                %2.根据信誉度找出监督节点
+                %要求(i)和上一个监督节点是邻居
+                %(ii)和当前的路由节点是邻居
+                
+                
                 if v<inf
                     N(nbs(idx)).E=N(nbs(idx)).E-Er;
                     N(nbs(idx)).type=1;
@@ -149,7 +160,7 @@ for ep=1:1
         linetypeselect=linetypeselect+1;
     end
 end
-%%
+%% 
 
 
 
