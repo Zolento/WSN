@@ -14,6 +14,7 @@ n=500;
 Rc=30; % 通信半径
 Rs=10; % 感应半径
 Eo=1; % 初始能量
+numAN=0;
 Et=0.0003; % 发送一个数据包消耗能量
 Er=0.0001; % 接收一个数据包消耗能量
 packlen=20; % 20个数据包
@@ -45,6 +46,7 @@ for i=1:n
     N(i).ANc=0; % 申明为恶意的节点
     if AN(i)<0.05 % 恶意节点
         N(i).AN=1;
+        numAN=numAN+1;
         N(i).rpp=0.7*rand; % 转发率
     else
         N(i).AN=0;
@@ -339,7 +341,7 @@ for ep=1:200
         linetypeselect=linetypeselect+1;
     end
     for i=1:n
-        if N(i).credit<0.5
+        if N(i).credit<0.8
             N(i).ANc=1;
             if N(i).type==0
                 newEN=EN(EN~=i);
@@ -355,6 +357,18 @@ for ep=1:200
         break;
     end
 end
-
+%% 计算误检率
+numANc=0;
+numFANc=0;
+for i=1:n
+    if N(i).ANc
+        numANc=numANc+1;
+        if ~N(i).AN
+            numFANc=numFANc+1;
+        end
+    end
+end
+error=numFANc/numANc;
+error
 
 
