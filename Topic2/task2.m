@@ -3,7 +3,7 @@ clear all;
 close all;
 %%
 r=40000/pi;
-rch=r/2;% ´ØÊ×³É´Ø°ë¾¶
+rch=r/2;% ç°‡é¦–æˆç°‡åŠå¾„
 para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
 rectangle('Position', para, 'Curvature', [1 1]);
 hold on;
@@ -13,14 +13,14 @@ axis equal
 %%
 N=load('N.mat');
 N=N.N;
-p=0.08; % ´ØÊ×Õ¼±È
+p=0.08; % ç°‡é¦–å æ¯”
 n=500;
-Rc=50; % Í¨ĞÅ°ë¾¶
-Eo=1; % ³õÊ¼ÄÜÁ¿
-dis=zeros(n); % ¾àÀë¾ØÕó
+Rc=50; % é€šä¿¡åŠå¾„
+Eo=1; % åˆå§‹èƒ½é‡
+dis=zeros(n); % è·ç¦»çŸ©é˜µ
 EN=[];
-inRc=[]; % ÔÚSNµÄRc°ë¾¶·¶Î§ÄÚµÄ½Úµã¼¯ºÏ
-inRc_notEN=[]; % ÔÚSNµÄRc°ë¾¶·¶Î§ÄÚµ«²»ÊÇENµÄ½Úµã¼¯ºÏ
+inRc=[]; % åœ¨SNçš„RcåŠå¾„èŒƒå›´å†…çš„èŠ‚ç‚¹é›†åˆ
+inRc_notEN=[]; % åœ¨SNçš„RcåŠå¾„èŒƒå›´å†…ä½†ä¸æ˜¯ENçš„èŠ‚ç‚¹é›†åˆ
 er=sqrt(r*rand(1));
 etheta=2*pi*rand(1);
 ex=er*cos(etheta);
@@ -30,20 +30,20 @@ hold on;
 para = [-Rc, -Rc, 2*Rc, 2*Rc];
 rectangle('Position', para, 'Curvature', [1 1],'EdgeColor','r');
 hold on;
-%% ³õÊ¼»¯1 ĞèÒªÌáÇ°¹Ì¶¨µÄ×Ö¶Î
+%% åˆå§‹åŒ–1 éœ€è¦æå‰å›ºå®šçš„å­—æ®µ
 for i=1:n 
-    N(i).type=-1;% ÆÕÍ¨½Úµã -1 ´Ø³ÉÔ±½Úµã£¨MN 0£© ´ØÊ×½Úµã£¨CH 1£© ¼à¶½½Úµã£¨IN 2)
-    N(i).EN=0; % ÊÇ·ñÎªÊÂ¼ş½Úµã
-    N(i).E=Eo; % ³õÊ¼ÄÜÁ¿
-    N(i).credit=1; % ĞÅÓş¶È
-    N(i).nb=[]; % Rc·¶Î§ÄÚÁÚ¾Ó
-    N(i).nbhf=[]; % Rc/2·¶Î§ÄÚÁÚ¾Ó
-    N(i).MN=[]; % ´Ø³ÉÔ±½Úµã
-    N(i).cluster=0; % ´ØÍ·
-    N(i).inrange=0; % ÄÜ·ñÓëSNÖ±½ÓÍ¨ĞÅ(¼´ÔÚSNµÄRc°ë¾¶·¶Î§ÄÚ)
-    N(i).d=0; % µ½SNµÄ¾àÀë
+    N(i).type=-1;% æ™®é€šèŠ‚ç‚¹ -1 ç°‡æˆå‘˜èŠ‚ç‚¹ï¼ˆMN 0ï¼‰ ç°‡é¦–èŠ‚ç‚¹ï¼ˆCH 1ï¼‰ ç›‘ç£èŠ‚ç‚¹ï¼ˆIN 2)
+    N(i).EN=0; % æ˜¯å¦ä¸ºäº‹ä»¶èŠ‚ç‚¹
+    N(i).E=Eo; % åˆå§‹èƒ½é‡
+    N(i).credit=1; % ä¿¡èª‰åº¦
+    N(i).nb=[]; % RcèŒƒå›´å†…é‚»å±…
+    N(i).nbhf=[]; % Rc/2èŒƒå›´å†…é‚»å±…
+    N(i).MN=[]; % ç°‡æˆå‘˜èŠ‚ç‚¹
+    N(i).cluster=0; % ç°‡å¤´
+    N(i).inrange=0; % èƒ½å¦ä¸SNç›´æ¥é€šä¿¡(å³åœ¨SNçš„RcåŠå¾„èŒƒå›´å†…)
+    N(i).d=0; % åˆ°SNçš„è·ç¦»
 end
-%% ³õÊ¼»¯2
+%% åˆå§‹åŒ–2
 for i=1:n
     N(i).d=sqrt((N(i).x)^2+(N(i).y)^2);
     for j=i:n
@@ -79,13 +79,13 @@ for i=1:n
 end
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
-%% ´ØÊ×Ñ¡¾Ù
+%% ç°‡é¦–é€‰ä¸¾
 found=zeros(1,size(EN,2));
 target=EN;
-chsall=[]; % ´æ·ÅÑ¡¾Ù³öµÄËùÓĞ´ØÊ×
+chsall=[]; % å­˜æ”¾é€‰ä¸¾å‡ºçš„æ‰€æœ‰ç°‡é¦–
 r=1;
-while sum(found)<size(EN,2) % ¶ÔÊÂ¼ş½Úµã½øĞĞ·Ö´Ø
-    t=(p/(1-p*(mod(r,1/p))));% ãĞÖµ
+while sum(found)<size(EN,2) % å¯¹äº‹ä»¶èŠ‚ç‚¹è¿›è¡Œåˆ†ç°‡
+    t=(p/(1-p*(mod(r,1/p))));% é˜ˆå€¼
     tleft=mod(r,round(1/p));
     numCLheads=0;
     chs=[];
@@ -96,15 +96,15 @@ while sum(found)<size(EN,2) % ¶ÔÊÂ¼ş½Úµã½øĞĞ·Ö´Ø
             target_tmp=[target_tmp,t];
         end
     end
-    for i=target_tmp % step1 Ñ¡³öºòÑ¡´ØÍ·
+    for i=target_tmp % step1 é€‰å‡ºå€™é€‰ç°‡å¤´
         if N(i).rleft>0
            N(i).rleft=N(i).rleft-1;
         end
         if N(i).E>0 && N(i).rleft==0
             tmp=rand;
             if tmp<t*N(i).E/Eo
-                N(i).rleft=round(1/p)-tleft;% ¸üĞÂµ½ÏÂ´ÎÑ¡¾ÙÂÖÊı
-                chtarget = [chtarget,i];% ±¾ÂÖºòÑ¡´ØÍ·¼¯
+                N(i).rleft=round(1/p)-tleft;% æ›´æ–°åˆ°ä¸‹æ¬¡é€‰ä¸¾è½®æ•°
+                chtarget = [chtarget,i];% æœ¬è½®å€™é€‰ç°‡å¤´é›†
                 numCLheads = numCLheads+1;
             end
         end
@@ -112,7 +112,7 @@ while sum(found)<size(EN,2) % ¶ÔÊÂ¼ş½Úµã½øĞĞ·Ö´Ø
     if numCLheads>0
         conflict = zeros(numCLheads); 
         del = [];
-        for i=1:numCLheads% step2 Ğ¡ÓÚµÄRc/2·¶Î§ ´ØÍ·¾ºÕù
+        for i=1:numCLheads% step2 å°äºçš„Rc/2èŒƒå›´ ç°‡å¤´ç«äº‰
             for j=i:numCLheads
                 if size(find(N(chtarget(i)).nbhf==chtarget(j)),2)~= 0
                     conflict(i,j)=1;
@@ -131,7 +131,7 @@ while sum(found)<size(EN,2) % ¶ÔÊÂ¼ş½Úµã½øĞĞ·Ö´Ø
                 N(chtarget(row(1))).type=-1;
             end
         end
-        for i=1:numCLheads % »®¹é´Ø³ÉÔ±½Úµã
+        for i=1:numCLheads % åˆ’å½’ç°‡æˆå‘˜èŠ‚ç‚¹
             if sum(i==del)==0
                 N(chtarget(i)).type=1;
                 chs = [chs,chtarget(i)];
@@ -139,7 +139,7 @@ while sum(found)<size(EN,2) % ¶ÔÊÂ¼ş½Úµã½øĞĞ·Ö´Ø
                 scatter(N(chtarget(i)).x,N(chtarget(i)).y,'m');
                 hold on;
                 for j=N(chtarget(i)).nbhf
-                    if N(j).type==-1&&N(j).EN==1% Rc/2ÄÚµÄÆÕÍ¨½ÚµãÒ»ÂÉÉùÃ÷ÎªºòÑ¡½Úµã
+                    if N(j).type==-1&&N(j).EN==1% Rc/2å†…çš„æ™®é€šèŠ‚ç‚¹ä¸€å¾‹å£°æ˜ä¸ºå€™é€‰èŠ‚ç‚¹
                         N(j).type=0;
                         N(j).cluster=chtarget(i);
                         N(chtarget(i)).MN=[N(chtarget(i)).MN,j];
@@ -154,7 +154,7 @@ while sum(found)<size(EN,2) % ¶ÔÊÂ¼ş½Úµã½øĞĞ·Ö´Ø
     end
     r=r+1;
 end
-%% ¾ùºâ´Ø½Úµã²»¹»µÄ´ØÊ×£¬ÎªÆä¶à·ÖÅä¼¸¸ö½Úµã£»Ñ¡³öÃ¿¸ö´ØµÄIN½Úµã
+%% å‡è¡¡ç°‡èŠ‚ç‚¹ä¸å¤Ÿçš„ç°‡é¦–ï¼Œä¸ºå…¶å¤šåˆ†é…å‡ ä¸ªèŠ‚ç‚¹ï¼›é€‰å‡ºæ¯ä¸ªç°‡çš„INèŠ‚ç‚¹
 flag=0;
 while(~flag) 
     flag=1;
@@ -185,7 +185,7 @@ while(~flag)
                     N(j).cluster=i;
                     plot([N(i).x,N(j).x],[N(i).y,N(j).y],'c');
                     hold on;
-                    flag=0; % ·¢ÉúÁËÖØ·ÖÅä£¬flagÖÃ0
+                    flag=0; % å‘ç”Ÿäº†é‡åˆ†é…ï¼Œflagç½®0
                 end
             end
         end
@@ -194,7 +194,7 @@ end
 for i=chsall
     
 end
-%% ¼ÆËã´ØÊ×ÁÚ½Ó¾ØÕó
+%% è®¡ç®—ç°‡é¦–é‚»æ¥çŸ©é˜µ
 chsalllen=size(chsall,2);
 dis_2=zeros(chsalllen+1);
 mind_2=inf;
@@ -219,8 +219,8 @@ for i=1:chsalllen
 end
 dis_2=dis_2+dis_2';
 dis_2(dis_2==0|dis_2>Rc^2)=inf;
-if 0<=numinRc&&numinRc<=T % Èç¹ûÔÚÒ»Ìø·¶Î§ÄÚµÄ´ØÊ×¸öÊıĞ¡ÓÚÒ»¶¨µÄÖµ
- % °Ñ×î½üµÄ´ØÊ×µÄÄÚÈ¦·¶Î§ÄÚµÄµã¶¼ÓÃ×÷ÖĞ¼Ì(Êµ¼ÊÉÏÄÚÈ¦×îÔ¶µÄÇé¿öÒ²²î²»¶àÂÔ´óÓÚRc)
+if 0<=numinRc&&numinRc<=T % å¦‚æœåœ¨ä¸€è·³èŒƒå›´å†…çš„ç°‡é¦–ä¸ªæ•°å°äºä¸€å®šçš„å€¼
+ % æŠŠæœ€è¿‘çš„ç°‡é¦–çš„å†…åœˆèŒƒå›´å†…çš„ç‚¹éƒ½ç”¨ä½œä¸­ç»§(å®é™…ä¸Šå†…åœˆæœ€è¿œçš„æƒ…å†µä¹Ÿå·®ä¸å¤šç•¥å¤§äºRc)
     root=mind_2(2);
     flag=0;
     for i=inRc_notEN
@@ -228,9 +228,9 @@ if 0<=numinRc&&numinRc<=T % Èç¹ûÔÚÒ»Ìø·¶Î§ÄÚµÄ´ØÊ×¸öÊıĞ¡ÓÚÒ»¶¨µÄÖµ
             innerRP=[innerRP,i];
         end
     end
-    targetnode=[chsall,innerRP]; % Ìí¼ÓÄÚÈ¦½Úµã
+    targetnode=[chsall,innerRP]; % æ·»åŠ å†…åœˆèŠ‚ç‚¹
     targetnodelen=size(targetnode,2);
-    dis_2=zeros(targetnodelen+1); % ÖØĞÂ¼ÆËã¾àÀë¾ØÕó
+    dis_2=zeros(targetnodelen+1); % é‡æ–°è®¡ç®—è·ç¦»çŸ©é˜µ
     for i=1:targetnodelen
         if N(targetnode(i)).inrange==1
             dis_2(i,targetnodelen+1)=N(targetnode(i)).d^2;
@@ -248,8 +248,8 @@ if 0<=numinRc&&numinRc<=T % Èç¹ûÔÚÒ»Ìø·¶Î§ÄÚµÄ´ØÊ×¸öÊıĞ¡ÓÚÒ»¶¨µÄÖµ
     d_2(1:targetnodelen)=inf;
     pre_node=-1*ones(1,targetnodelen+1);
     path=-1*ones(1,targetnodelen+1);
-    root=targetnodelen+1; % rootÖØĞÂÖ¸ÏòSN
-else % Èç¹ûÔÚÒ»Ìø·¶Î§ÄÚµÄ´ØÊ×¸öÊı×ã¹»¶à
+    root=targetnodelen+1; % rooté‡æ–°æŒ‡å‘SN
+else % å¦‚æœåœ¨ä¸€è·³èŒƒå›´å†…çš„ç°‡é¦–ä¸ªæ•°è¶³å¤Ÿå¤š
     flag=1;
     found=zeros(1,chsalllen+1);
     found(chsalllen+1)=1;
@@ -257,41 +257,41 @@ else % Èç¹ûÔÚÒ»Ìø·¶Î§ÄÚµÄ´ØÊ×¸öÊı×ã¹»¶à
     d_2(1:chsalllen)=inf;
     pre_node=-1*ones(1,chsalllen+1);
     path=-1*ones(1,chsalllen+1);
-    root=chsalllen+1; % rootÖ±½ÓÖ¸ÏòSN
+    root=chsalllen+1; % rootç›´æ¥æŒ‡å‘SN
 end
 if ~flag
     pathnodes=targetnode;
 else
     pathnodes=chsall;
 end
-% »­³ö×î½üµÄ´ØÊ×µÄÄÚÈ¦·¶Î§
+% ç”»å‡ºæœ€è¿‘çš„ç°‡é¦–çš„å†…åœˆèŒƒå›´
 SNsr=sqrt(N(chsall(mind_2(2))).x^2+N(chsall(mind_2(2))).y^2);
 para = [-SNsr, -SNsr, 2*SNsr, 2*SNsr];
 rectangle('Position', para, 'Curvature', [1 1]);
 hold on;
-% »­³ö²ÎÓëÂ·ÓÉµÄ½ÚµãĞòºÅ
+% ç”»å‡ºå‚ä¸è·¯ç”±çš„èŠ‚ç‚¹åºå·
 for i=pathnodes
     c = num2str(i);
     text(N(i).x,N(i).y,c);
     hold on;
 end
-%% Ñ°ÕÒ´ØÊ×µ½SNµÄÂ·¾¶(d^2×îĞ¡)
+%% å¯»æ‰¾ç°‡é¦–åˆ°SNçš„è·¯å¾„(d^2æœ€å°)
 SNs=root;
-% ÇóÂ·¾¶ run dijkstra
-while sum(found)<size(found,2)  %¿´ÊÇ·ñËùÓĞµÄµã¶¼±ê¼ÇÎªP±êºÅ
+% æ±‚è·¯å¾„ run dijkstra
+while sum(found)<size(found,2)  %çœ‹æ˜¯å¦æ‰€æœ‰çš„ç‚¹éƒ½æ ‡è®°ä¸ºPæ ‡å·
     target=find(found==0); 
     dtmp=d_2;
-    d_2(target)=min(d_2(target),d_2(SNs)+dis_2(SNs,target));%¶Ô»¹Ã»ÓĞ´æÈëfoundµÄµã¸üĞÂ×î¶ÌÍ¨Â·
+    d_2(target)=min(d_2(target),d_2(SNs)+dis_2(SNs,target));%å¯¹è¿˜æ²¡æœ‰å­˜å…¥foundçš„ç‚¹æ›´æ–°æœ€çŸ­é€šè·¯
     minp_nodeidx=find(d_2(target)==min(d_2(target)));
-    updated=find(d_2(target)~=dtmp(target));%×î¶ÌÂ·¾¶±»¸üĞÂ¹ıµÄ½Úµã
+    updated=find(d_2(target)~=dtmp(target));%æœ€çŸ­è·¯å¾„è¢«æ›´æ–°è¿‡çš„èŠ‚ç‚¹
     if size(updated,2)~=0
         pre_node(target(updated))=SNs;
     end
 %     for i=minp_nodeidx
-    SNs=target(minp_nodeidx(1));   %½«µ±Ç°·ûºÏ×î¶ÌÍ¨Â·µÄÇÒÀëSN×î½üµÄ½ÚµãÉèÎªÔ´µã
-    found(SNs)=1;%ÒÑÕÒµ½×îĞ¡Â·¾¶ found(i)=1
+    SNs=target(minp_nodeidx(1));   %å°†å½“å‰ç¬¦åˆæœ€çŸ­é€šè·¯çš„ä¸”ç¦»SNæœ€è¿‘çš„èŠ‚ç‚¹è®¾ä¸ºæºç‚¹
+    found(SNs)=1;%å·²æ‰¾åˆ°æœ€å°è·¯å¾„ found(i)=1
     path(SNs)=pre_node(SNs);
-    k=path(SNs); % »­³öËùÓĞÂ·¾¶
+    k=path(SNs); % ç”»å‡ºæ‰€æœ‰è·¯å¾„
     p=SNs;
     if k<=size(pathnodes,2)
         plot([N(pathnodes(p)).x,N(pathnodes(k)).x],[N(pathnodes(p)).y,N(pathnodes(k)).y],'k');
@@ -301,8 +301,8 @@ while sum(found)<size(found,2)  %¿´ÊÇ·ñËùÓĞµÄµã¶¼±ê¼ÇÎªP±êºÅ
         hold on;
     end
 end
-path(path==size(path,2))=-1; % ½«Ö¸ÏòSNµÄÖÃÎª-1
-%% Êä³öÂ·¾¶ v2;ÕÒÇ°Ò»ÌøÊÇRPµÄ´ØÊ×
+path(path==size(path,2))=-1; % å°†æŒ‡å‘SNçš„ç½®ä¸º-1
+%% è¾“å‡ºè·¯å¾„ v2;æ‰¾å‰ä¸€è·³æ˜¯RPçš„ç°‡é¦–
 path_traceback=cell(1,chsalllen);
 E=zeros(1,chsalllen);
 Ed=zeros(1,chsalllen);
@@ -330,7 +330,7 @@ for i=1:chsalllen
         end
     end
 end
-%% Ñ°ÕÒRPµÄ¼à¶½½Úµã
+%% å¯»æ‰¾RPçš„ç›‘ç£èŠ‚ç‚¹
 for i=N_RP
     for j=path_traceback{i}
         

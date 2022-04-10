@@ -25,22 +25,31 @@ etheta=2*pi*rand(1);
 ex=er*cos(etheta);
 ey=er*sin(etheta);
 %% 初始化1 需要提前固定的字段
+AN=rand(1,n);
 for i=1:n 
     N(i).type=-1; % 普通节点 -1 事件节点(EN 0) 中继节点（RP 1） 监督节点（IN 2)
     N(i).steps=0; % 跳数
     N(i).E=Eo; % 初始能量
     N(i).IN=0; % 该节点所属的监督节点
+    N(i).INrp=[]; % 如果是监督节点，该节点用来中继到下一个监督节点的中继点(可能有一个以上,以target,rp的键值对保存)
     N(i).INn=[]; % 如果是监督节点，该节点所监督的节点(可能有一个以上,以i,rp的键值对保存)
     N(i).INnpklen=0; % 如果是监督节点，监测到的转发包数(可能有一个以上,一次只存一个)
-    N(i).credit=0; % 信誉度
+    N(i).credit=1; % 信誉度
     N(i).nb=[]; % Rc范围内邻居
     N(i).nbhf=[]; % Rc/2范围内邻居
     N(i).d=0; % 到SN的距离
     N(i).path=[]; % 到SN的路径
     N(i).INpath=[]; % IN路径
-    N(i).rpp=0.95; % 转发率
     N(i).r=1; % 实际接收
     N(i).t=1; % 实际发送
+    N(i).ANc=0; % 申明为恶意的节点
+    if AN(i)<0.05 % 恶意节点
+        N(i).AN=1;
+        N(i).rpp=0.7*rand; % 转发率
+    else
+        N(i).AN=0;
+        N(i).rpp=0.8+0.2*rand; % 转发率
+    end
 end
 %% 初始化2
 for i=1:n
@@ -74,32 +83,40 @@ N(n+1).E=inf;
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
 %% 寻找每一个节点的RP和IN
-for ep=1:2
-    figure(ep);
-    para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
-    rectangle('Position', para, 'Curvature', [1 1]);
-    para = [ex-Rs, ey-Rs, 2*Rs, 2*Rs];
-    rectangle('Position', para, 'Curvature', [1 1]);
-    hold on;
-    for i=1:3
-        para = [-i*Rc, -i*Rc, 2*i*Rc, 2*i*Rc];
-        rectangle('Position', para, 'Curvature', [1 1],'EdgeColor','r');
+s=20;
+for ep=1:200
+    if mod(ep,s)==0
+        figure(ep);
+        para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
+        rectangle('Position', para, 'Curvature', [1 1]);
+        para = [ex-Rs, ey-Rs, 2*Rs, 2*Rs];
+        rectangle('Position', para, 'Curvature', [1 1]);
         hold on;
-    end
-    xlim([-(sqrt(r)+10) sqrt(r)+10])
-    ylim([-(sqrt(r)+10) sqrt(r)+10])
-    axis equal
-    scatter(0,0,'r');% SN
-    for i=1:n
-        if N(i).type==0
-            scatter(N(i).x,N(i).y,'g');
-            c = num2str(i);
-            text(N(i).x,N(i).y,c);
-        else
-            N(i).type=-1;
-            scatter(N(i).x,N(i).y,'b');
+        for i=1:3
+            para = [-i*Rc, -i*Rc, 2*i*Rc, 2*i*Rc];
+            rectangle('Position', para, 'Curvature', [1 1],'EdgeColor','r');
+            hold on;
         end
-        
+        xlim([-(sqrt(r)+10) sqrt(r)+10])
+        ylim([-(sqrt(r)+10) sqrt(r)+10])
+        axis equal
+        scatter(0,0,'r');% SN
+        for i=1:n
+            if N(i).type==0
+                scatter(N(i).x,N(i).y,'g');
+                c = num2str(i);
+                text(N(i).x,N(i).y,c);
+            else
+                if N(i).ANc~=1
+                    scatter(N(i).x,N(i).y,'b');
+                end
+            end
+            if N(i).E<=0
+                scatter(N(i).x,N(i).y,'k');
+            elseif N(i).ANc==1
+                scatter(N(i).x,N(i).y,'y');            
+            end
+        end
     end
     colorselect=0;
     color={'k','r','c','b'};
@@ -107,20 +124,16 @@ for ep=1:2
     linetypeselect=0;
     linetype={'-','--','-.'};
     linetypelen=size(linetype,2);
-    for i=EN % 初始化
-        for j=N(i).path
-            if N(j).type~=0
-                N(j).type=-1;
-            end
-            N(j).IN=0;
-        end
-        for j=N(i).INpath
-            N(j).type=-1;
-            N(j).INn=[];
-            N(j).INnpklen=0;
+    for i=1:n % 初始化
+        if N(i).type~=0
+            N(i).type=-1;
         end
         N(i).path=[]; % 重置path
         N(i).INpath=[];
+        N(i).INnpklen=0;
+        N(i).INrp=[];
+        N(i).INn=[];
+        N(i).IN=0;
     end
     for i=EN
         pklen=packlen;
@@ -131,7 +144,7 @@ for ep=1:2
             foundIN=0; % 判断有没有找到现有的IN
             if N(curnode).steps~=1
                 for j=nbs %1.找出路由节点的路径
-                    if N(j).E>0&&N(j).type~=2&&size(find(N(i).path==j),2)==0 % 监督节点不作为路由,事件节点可能作路由；不能选择已经在路径的节点
+                    if N(j).E>0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点不作为路由,事件节点可能作路由；不能选择已经在路径的节点
                         weight=a*N(j).steps+b*Eo/N(j).E;
                         Wrp=[Wrp,weight];
                     else
@@ -145,13 +158,15 @@ for ep=1:2
                     for j=idxmins % 找出下一跳邻居最多的最小权值路由节点
                         nextstepnbtmp=0;
                         for k=N(nbs(j)).nb
-                            if N(k).steps==N(i).steps-1
-                                nextstepnbtmp=nextstepnbtmp+1;
-                            end
-                            if nextstepnbtmp>nextstepnbmax
-                                idx=j;
-                                nextstepnbmax=nextstepnbtmp;
-                                v=Wrp(idx);
+                            if N(k).ANc~=1
+                                if N(k).steps==N(i).steps-1
+                                    nextstepnbtmp=nextstepnbtmp+1;
+                                end
+                                if nextstepnbtmp>nextstepnbmax
+                                    idx=j;
+                                    nextstepnbmax=nextstepnbtmp;
+                                    v=Wrp(idx);
+                                end
                             end
                         end
                     end
@@ -168,25 +183,31 @@ for ep=1:2
                     colorstr=color{mod(colorselect,colorlen)+1}; % 选择颜色
                     linetypestr=linetype{mod(linetypeselect,linetypelen)+1}; % 选择线型
                     if N(RP).steps==1
-                        plot([N(curnode).x,N(RP).x],[N(curnode).y,N(RP).y],[linetypestr,colorstr]);
-                        plot([N(RP).x,0],[N(RP).y,0],[linetypestr,colorstr]);
-                        text(N(curnode).x,N(curnode).y,num2str(curnode));
-                        text(N(RP).x,N(RP).y,num2str(RP));
-                        %N(RP).E=N(RP).E-packlen*Et;
-                        hold on;
+                        if mod(ep,s)==0
+                            plot([N(curnode).x,N(RP).x],[N(curnode).y,N(RP).y],[linetypestr,colorstr]);
+                            plot([N(RP).x,0],[N(RP).y,0],[linetypestr,colorstr]);
+                            text(N(curnode).x,N(curnode).y,num2str(curnode));
+                            text(N(RP).x,N(RP).y,num2str(RP));
+                            %N(RP).E=N(RP).E-packlen*Et;
+                            hold on;
+                        end
                         curnode=-1;
                     else
-                        plot([N(curnode).x,N(RP).x],[N(curnode).y,N(RP).y],[linetypestr,colorstr]);
-                        text(N(curnode).x,N(curnode).y,num2str(curnode));
-                        hold on;
+                        if mod(ep,s)==0
+                            plot([N(curnode).x,N(RP).x],[N(curnode).y,N(RP).y],[linetypestr,colorstr]);
+                            text(N(curnode).x,N(curnode).y,num2str(curnode));
+                            hold on;
+                        end
                         curnode=RP;
                     end
                 end
             else % 事件节点本身就是一跳，直接连接SN(这时的path还是保持[])
                 colorstr=color{mod(colorselect,colorlen)+1}; % 选择颜色
                 linetypestr=linetype{mod(linetypeselect,linetypelen)+1}; % 选择线型
-                plot([N(curnode).x,0],[N(curnode).y,0],[linetypestr,colorstr]);
-                hold on;
+                if mod(ep,s)==0
+                    plot([N(curnode).x,0],[N(curnode).y,0],[linetypestr,colorstr]);
+                    hold on;
+                end
                 curnode=-1;
             end
         end
@@ -204,8 +225,10 @@ for ep=1:2
                     % 如果上一个IN已经是一跳节点了,说明由上个IN直接传给SN
                     % 这时INpath里显示SN的编号
                     N(i).INpath=[N(i).INpath,n+1];
-                    plot([N(preIN).x,0],[N(preIN).y,0],[linetypestr,'m']);
-                    hold on;
+                    if mod(ep,s)==0
+                        plot([N(preIN).x,0],[N(preIN).y,0],[linetypestr,'m']);
+                        hold on;
+                    end
                     break;
                 else
                     % 如果上一个IN还不是一跳节点,说明需要再找一个IN
@@ -217,16 +240,52 @@ for ep=1:2
             end
             [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
             IN=INcds(idxin);
-            plot([N(IN).x,N(preIN).x],[N(IN).y,N(preIN).y],[linetypestr,'m']);
-            plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
-            text(N(IN).x,N(IN).y,num2str(IN));
-            hold on;
-            N(i).INpath=[N(i).INpath,IN];
-            N(IN).type=2;
-            N(IN).INn=[N(IN).INn;i,rp];
-            N(rp).IN=IN;
-            preIN=N(rp).IN;
-            preRP=rp;
+            if sum(IN)~=0
+                if mod(ep,s)==0
+                    plot([N(IN).x,N(preIN).x],[N(IN).y,N(preIN).y],[linetypestr,'m']);
+                    plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
+                    text(N(IN).x,N(IN).y,num2str(IN));
+                    hold on;
+                end
+                N(i).INpath=[N(i).INpath,IN];
+                N(IN).type=2;
+                N(IN).INn=[N(IN).INn;i,rp];
+                N(rp).IN=IN;
+                preIN=N(rp).IN;
+                preRP=rp;
+            else
+                for j=N(preIN).nb % 从邻居里面寻找rp(有时候还是会找不到路径)
+                    if N(j).type==-1&&N(j).ANc~=1
+                        targetnodes=intersect(rpnbs,N(j).nb);
+                        Win=[];
+                        INcds=[];
+                        if sum(targetnodes)~=0
+                            [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
+                            IN=INcds(idxin);
+                            if sum(IN)~=0
+                                if mod(ep,s)==0
+                                    plot([N(j).x,N(preIN).x],[N(j).y,N(preIN).y],[linetypestr,'m']);
+                                    plot([N(IN).x,N(j).x],[N(IN).y,N(j).y],[linetypestr,'m']);
+                                    plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
+                                    text(N(IN).x,N(IN).y,num2str(IN));
+                                    hold on;
+                                end
+                                N(i).INpath=[N(i).INpath,IN];
+                                N(IN).type=2;
+                                N(IN).INn=[N(IN).INn;i,rp];
+                                N(rp).IN=IN;
+                                N(preIN).INrp=[N(preIN).INrp;IN,j];
+                                preIN=N(rp).IN;
+                                preRP=rp;
+                                break;
+                            end
+                        end
+                    end
+                end
+%                 if sum(IN)==0
+%                     
+%                 end
+            end
         end
         % 传输数据包
         for rp=N(i).path
@@ -278,6 +337,22 @@ for ep=1:2
         end
         colorselect=colorselect+1;
         linetypeselect=linetypeselect+1;
+    end
+    for i=1:n
+        if N(i).credit<0.5
+            N(i).ANc=1;
+            if N(i).type==0
+                newEN=EN(EN~=i);
+                EN=newEN;
+            end
+        end
+        if N(i).type==0&&N(i).E<=0
+            newEN=EN(EN~=i);
+            EN=newEN;
+        end
+    end
+    if sum(EN)==0
+        break;
     end
 end
 
