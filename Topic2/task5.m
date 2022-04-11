@@ -7,8 +7,9 @@ rch=r/2;% 簇首成簇半径
 %%
 N=load('N.mat');
 N=N.N;
-a=0.3;
-b=1-a;
+a=0.5;
+b=0.4;
+c=0.1;
 p=0.08; % 簇首占比
 n=500;
 Rc=30; % 通信半径
@@ -35,14 +36,14 @@ for i=1:n
     N(i).INrp=[]; % 如果是监督节点，该节点用来中继到下一个监督节点的中继点(可能有一个以上,以target,rp的键值对保存)
     N(i).INn=[]; % 如果是监督节点，该节点所监督的节点(可能有一个以上,以i,rp的键值对保存)
     N(i).INnpklen=0; % 如果是监督节点，监测到的转发包数(可能有一个以上,一次只存一个)
+    N(i).INpath=[]; % IN路径
     N(i).credit=1; % 信誉度
     N(i).nb=[]; % Rc范围内邻居
     N(i).nbhf=[]; % Rc/2范围内邻居
     N(i).d=0; % 到SN的距离
     N(i).path=[]; % 到SN的路径
-    N(i).INpath=[]; % IN路径
     N(i).r=1; % 实际接收
-    N(i).t=1; % 实际发送
+    N(i).t=2; % 实际发送
     N(i).ANc=0; % 申明为恶意的节点
     if AN(i)<0.05 % 恶意节点
         N(i).AN=1;
@@ -138,6 +139,7 @@ for ep=1:200
         N(i).IN=0;
     end
     for i=EN
+        flag=1;
         pklen=packlen;
         curnode=i;
         while(curnode~=-1) % -1代表SN
@@ -145,34 +147,23 @@ for ep=1:200
             Wrp=[];
             foundIN=0; % 判断有没有找到现有的IN
             if N(curnode).steps~=1
-                for j=nbs %1.找出路由节点的路径
+                for j=nbs %1结合能量和跳数，找出邻居中其他路由节点最少的路由节点的路径
+                    rpnbtmp=0;
                     if N(j).E>0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点不作为路由,事件节点可能作路由；不能选择已经在路径的节点
-                        weight=a*N(j).steps+b*Eo/N(j).E;
+                        for k=N(j).nb
+                            if N(k).ANc~=1
+                                if N(k).type==1&&k~=curnode % 需要排除当前rp
+                                    rpnbtmp=rpnbtmp+1;
+                                end
+                            end
+                        end
+                        weight=a*N(j).steps+b*Eo/N(j).E+0.1*rpnbtmp/size(N(j).nb,2);
                         Wrp=[Wrp,weight];
                     else
                         Wrp=[Wrp,inf];
                     end
                 end
                 [v,idx]=min(Wrp);
-                idxmins=find(Wrp==v); % 对符合最小权值的路由节点进一步筛选
-                nextstepnbmax=inf;
-                if size(idxmins,2)>1
-                    for j=idxmins % 找出下一跳邻居最多的最小权值路由节点
-                        nextstepnbtmp=0;
-                        for k=N(nbs(j)).nb
-                            if N(k).ANc~=1
-                                if N(k).steps==N(i).steps-1
-                                    nextstepnbtmp=nextstepnbtmp+1;
-                                end
-                                if nextstepnbtmp>nextstepnbmax
-                                    idx=j;
-                                    nextstepnbmax=nextstepnbtmp;
-                                    v=Wrp(idx);
-                                end
-                            end
-                        end
-                    end
-                end
                 RP=nbs(idx);
                 if N(RP).type~=0
                     N(RP).type=1;
@@ -241,7 +232,7 @@ for ep=1:200
                 targetnodes=intersect(rpnbs,N(preIN).nb);
             end
             [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
-            IN=INcds(idxin);
+            IN=INcds(idxin);            
             if sum(IN)~=0
                 if mod(ep,s)==0
                     plot([N(IN).x,N(preIN).x],[N(IN).y,N(preIN).y],[linetypestr,'m']);
@@ -256,85 +247,93 @@ for ep=1:200
                 preIN=N(rp).IN;
                 preRP=rp;
             else
-                for j=N(preIN).nb % 从邻居里面寻找rp(有时候还是会找不到路径)
-                    if N(j).type==-1&&N(j).ANc~=1
-                        targetnodes=intersect(rpnbs,N(j).nb);
-                        Win=[];
-                        INcds=[];
-                        if sum(targetnodes)~=0
-                            [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
-                            IN=INcds(idxin);
-                            if sum(IN)~=0
-                                if mod(ep,s)==0
-                                    plot([N(j).x,N(preIN).x],[N(j).y,N(preIN).y],[linetypestr,'m']);
-                                    plot([N(IN).x,N(j).x],[N(IN).y,N(j).y],[linetypestr,'m']);
-                                    plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
-                                    text(N(IN).x,N(IN).y,num2str(IN));
-                                    hold on;
-                                end
-                                N(i).INpath=[N(i).INpath,IN];
-                                N(IN).type=2;
-                                N(IN).INn=[N(IN).INn;i,rp];
-                                N(rp).IN=IN;
-                                N(preIN).INrp=[N(preIN).INrp;IN,j];
-                                preIN=N(rp).IN;
-                                preRP=rp;
-                                break;
-                            end
+                bestcredit=0;
+                bestcreditidx=0;
+                for j=N(preIN).nb % 从邻居里面寻找rp
+                    if (N(j).type==-1||N(j).type==2)&&N(j).ANc~=1&&sum(intersect(rpnbs,N(j).nb))~=0
+                        if N(j).credit>bestcredit
+                            bestcredit=N(j).credit;
+                            bestcreditidx=j;
                         end
                     end
                 end
-%                 if sum(IN)==0
-%                     
-%                 end
+                targetnodes=intersect(rpnbs,N(bestcreditidx).nb);
+                Win=[];
+                INcds=[];
+                if sum(targetnodes)~=0
+                    [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
+                    IN=INcds(idxin);
+                    IN
+                    if sum(IN)~=0
+                        if mod(ep,s)==0
+                            plot([N(bestcreditidx).x,N(preIN).x],[N(bestcreditidx).y,N(preIN).y],[linetypestr,'m']);
+                            plot([N(IN).x,N(bestcreditidx).x],[N(IN).y,N(bestcreditidx).y],[linetypestr,'m']);
+                            plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
+                            text(N(IN).x,N(IN).y,num2str(IN));
+                            hold on;
+                        end
+                        N(i).INpath=[N(i).INpath,IN];
+                        N(IN).type=2;
+                        N(IN).INn=[N(IN).INn;i,rp];
+                        N(rp).IN=IN;
+                        N(preIN).INrp=[N(preIN).INrp;IN,bestcreditidx];
+                        preIN=N(rp).IN;
+                        preRP=rp;
+                    else
+                        flag=0;
+                        % break; % 有时候还是会找不到路径
+                    end
+                end
             end
         end
         % 传输数据包
-        for rp=N(i).path
-            if rp~=n+1 % 不是SN
-                % rp行为
-                if rp~=i % 不是起始的事件节点
-                    N(rp).E=N(rp).E-pklen*Er; % 接受
+        if flag
+            for rp=N(i).path
+                if rp~=n+1 % 不是SN
+                    % rp行为
+                    if rp~=i % 不是起始的事件节点
+                        N(rp).E=N(rp).E-pklen*Er; % 接受
+                    end
+                    pklen=pklen*N(rp).rpp; % 选择性转发长度
+                    N(rp).E=N(rp).E-pklen*Et; % 发送给IN
+                    % IN行为
+                    N(N(rp).IN).E=N(N(rp).IN).E-pklen*Er; % IN接收来自rp的长度
+                    N(N(rp).IN).INnpklen=pklen; % IN记录选择性转发长度
+                    % rp行为
+                    N(rp).E=N(rp).E-pklen*Et; % 选择性转发给下一个
                 end
-                pklen=pklen*N(rp).rpp; % 选择性转发长度
-                N(rp).E=N(rp).E-pklen*Et; % 发送给IN
-                % IN行为
-                N(N(rp).IN).E=N(N(rp).IN).E-pklen*Er; % IN接收来自rp的长度
-                N(N(rp).IN).INnpklen=pklen; % IN记录选择性转发长度
-                % rp行为
-                N(rp).E=N(rp).E-pklen*Et; % 选择性转发给下一个
             end
-        end
-        % IN结算转发率
-        for in=N(i).INpath
-            if in~=N(i).INpath(end) % 不是SN或者中继到SN的IN
-                if in~=N(i).INpath(1) % 不是起始的事件节点的IN
-                    N(in).E=N(in).E-prepklen*Er; % 接受
-                else
-                    prepklen=packlen; % 初始化前跳包长
-                end
-                pklen=N(in).INnpklen; % 读取监督的RP的转发包长
-                % 更新监督的RP或EN的信誉度
-                k=0;
-                for j=N(in).INn(:,1)
-                    k=k+1;
-                    if j==i
-                        v=N(in).INn(k,2);
-                        if sum(find(N(i).path==v))~=0
-                            N(v).r=N(v).r+prepklen;
-                            N(v).t=N(v).t+pklen;
-                            N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度
+            % IN结算转发率
+            for in=N(i).INpath
+                if in~=N(i).INpath(end) % 不是SN或者中继到SN的IN
+                    if in~=N(i).INpath(1) % 不是起始的事件节点的IN
+                        N(in).E=N(in).E-prepklen*Er; % 接受
+                    else
+                        prepklen=packlen; % 初始化前跳包长
+                    end
+                    pklen=N(in).INnpklen; % 读取监督的RP的转发包长
+                    % 更新监督的RP或EN的信誉度
+                    k=0;
+                    for j=N(in).INn(:,1)
+                        k=k+1;
+                        if j==i
+                            v=N(in).INn(k,2);
+                            if sum(find(N(i).path==v))~=0
+                                N(v).r=N(v).r+prepklen;
+                                N(v).t=N(v).t+pklen;
+                                N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度
+                            end
                         end
                     end
+                    prepklen=N(in).INnpklen*N(in).rpp; % 更新监督到的包长，作为下一个RP实际接受到的包长
+                    % IN之间也存在不完全转发，所以必须要用IN的rpp更新
+                    N(in).E=N(in).E-prepklen*Et; % 发送给下一个IN
+                else
+                    N(in).E=N(in).E-prepklen*Er; % 接受
+                    N(in).E=N(in).E-N(in).rpp*prepklen*Et; % 发送给SN
+                    % 如果这时IN是SN，由于E是inf，上面的操作没有啥影响
+                    % 如果这时IN是中继到SN的IN，单纯用rpp处理prepklen，然后转发就行了
                 end
-                prepklen=N(in).INnpklen*N(in).rpp; % 更新监督到的包长，作为下一个RP实际接受到的包长
-                % IN之间也存在不完全转发，所以必须要用IN的rpp更新
-                N(in).E=N(in).E-prepklen*Et; % 发送给下一个IN
-            else
-                N(in).E=N(in).E-prepklen*Er; % 接受
-                N(in).E=N(in).E-N(in).rpp*prepklen*Et; % 发送给SN
-                % 如果这时IN是SN，由于E是inf，上面的操作没有啥影响
-                % 如果这时IN是中继到SN的IN，单纯用rpp处理prepklen，然后转发就行了
             end
         end
         colorselect=colorselect+1;
@@ -353,6 +352,7 @@ for ep=1:200
             EN=newEN;
         end
     end
+    ep
     if sum(EN)==0
         break;
     end
@@ -369,6 +369,5 @@ for i=1:n
     end
 end
 error=numFANc/numANc;
-error
 
 
