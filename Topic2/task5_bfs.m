@@ -45,6 +45,7 @@ for i=1:n
     N(i).r=1; % 实际接收
     N(i).t=2; % 实际发送
     N(i).ANc=0; % 申明为恶意的节点
+    N(i).bfspath=[]; % bfs搜索到的路径
     if AN(i)<0.05 % 恶意节点
         N(i).AN=1;
         numAN=numAN+1;
@@ -70,6 +71,7 @@ for i=1:n
     end
     if (N(i).x-ex)^2+(N(i).y-ey)^2<=Rs^2
         N(i).type=0;
+        N(i).E=inf; % 假设事件节点的能量为inf
         EN=[EN,i];
     end
     if (N(i).x)^2+(N(i).y)^2<=Rc^2
@@ -86,7 +88,7 @@ N(n+1).E=inf;
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
 %% 寻找每一个节点的RP和IN
-s=10;
+s=20;
 for ep=1:200
     if mod(ep,s)==0
         figure(ep);
@@ -137,9 +139,10 @@ for ep=1:200
         N(i).INrp=[];
         N(i).INn=[];
         N(i).IN=0;
+        N(i).bfspath=[];
+        N(i).flagpath=1;
     end
     for i=EN
-        flag=1;
         pklen=packlen;
         curnode=i;
         while(curnode~=-1) % -1代表SN
@@ -147,16 +150,9 @@ for ep=1:200
             Wrp=[];
             foundIN=0; % 判断有没有找到现有的IN
             if N(curnode).steps~=1
-                for j=nbs %1结合能量和跳数，找出邻居中其他路由节点最少的路由节点的路径
+                for j=nbs %结合能量和跳数，找出邻居中其他路由节点最少的路由节点的路径
                     rpnbtmp=0;
                     if N(j).E>0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点不作为路由,事件节点可能作路由；不能选择已经在路径的节点
-%                         for k=N(j).nb
-%                             if N(k).ANc~=1
-%                                 if N(k).type==1&&k~=curnode % 需要排除当前rp
-%                                     rpnbtmp=rpnbtmp+1;
-%                                 end
-%                             end
-%                         end
                         weight=a*N(j).steps+b*Eo/N(j).E;%+0.1*rpnbtmp/size(N(j).nb,2);
                         Wrp=[Wrp,weight];
                     else
@@ -169,9 +165,7 @@ for ep=1:200
                     N(RP).type=1;
                 end
                 if v<inf
-                    %N(RP).E=N(RP).E-packlen*Er;
                     N(RP).type=1;
-                    %N(curnode).E=N(curnode).E-packlen*Et;
                     N(i).path=[N(i).path,RP];
                     colorstr=color{mod(colorselect,colorlen)+1}; % 选择颜色
                     linetypestr=linetype{mod(linetypeselect,linetypelen)+1}; % 选择线型
@@ -181,7 +175,6 @@ for ep=1:200
                             plot([N(RP).x,0],[N(RP).y,0],[linetypestr,colorstr]);
                             text(N(curnode).x,N(curnode).y,num2str(curnode));
                             text(N(RP).x,N(RP).y,num2str(RP));
-                            %N(RP).E=N(RP).E-packlen*Et;
                             hold on;
                         end
                         curnode=-1;
@@ -209,11 +202,10 @@ for ep=1:200
         preRP=i;
         for rp=N(i).path
             rpnbs=N(rp).nb;
+            preINnbs=N(preIN).nb;
             Win=[];
             INcds=[];
-            if rp==i % 开始
-                targetnodes=intersect(rpnbs,N(N(i).path(2)).nb);
-            elseif rp==n+1 % 到达SN
+            if rp==n+1 % 到达SN
                 if sum(find(rpnbs==preIN))~=0
                     % 如果上一个IN已经是一跳节点了,说明由上个IN直接传给SN
                     % 这时INpath里显示SN的编号
@@ -226,68 +218,114 @@ for ep=1:200
                 else
                     % 如果上一个IN还不是一跳节点,说明需要再找一个IN
                     % 这时INpath里面显示IN的编号，并且其INn为SN
-                    targetnodes=intersect(rpnbs,N(preIN).nb);
+                    targetnodes=intersect(rpnbs,N(preRP).nb);
                 end
             else
-                targetnodes=intersect(rpnbs,N(preIN).nb);
+                targetnodes=intersect(rpnbs,N(preRP).nb); %1.先找RP的公共邻居
             end
-            [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
-            IN=INcds(idxin);            
-            if sum(IN)~=0
-                if mod(ep,s)==0
-                    plot([N(IN).x,N(preIN).x],[N(IN).y,N(preIN).y],[linetypestr,'m']);
-                    plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
-                    text(N(IN).x,N(IN).y,num2str(IN));
-                    hold on;
-                end
+            if rp==i % 开始，EN不需要找IN
+                % targetnodes=intersect(rpnbs,N(N(i).path(2)).nb);
+                IN=i;
                 N(i).INpath=[N(i).INpath,IN];
-                N(IN).type=2;
-                N(IN).INn=[N(IN).INn;i,rp];
-                N(rp).IN=IN;
-                preIN=N(rp).IN;
-                preRP=rp;
+                N(IN).INn=[N(IN).INn;i,i];
+                N(rp).IN=i;
             else
-                bestcredit=0;
-                bestcreditidx=0;
-                for j=N(preIN).nb % 从邻居里面寻找rp
-                    if (N(j).type==-1||N(j).type==2)&&N(j).ANc~=1&&sum(intersect(rpnbs,N(j).nb))~=0
-                        if N(j).credit>bestcredit
-                            bestcredit=N(j).credit;
-                            bestcreditidx=j;
-                        end
-                    end
+                [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,Eo,i);
+                IN=INcds(idxin); % 此处的两个RP间的IN默认存在，假如没有我也不知道怎么办
+                if N(IN).ANc==1
+                    IN;
                 end
-                targetnodes=intersect(rpnbs,N(bestcreditidx).nb);
-                Win=[];
-                INcds=[];
-                if sum(targetnodes)~=0
-                    [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,rp,Eo,i);
-                    IN=INcds(idxin);
-                    IN
-                    if sum(IN)~=0
-                        if mod(ep,s)==0
-                            plot([N(bestcreditidx).x,N(preIN).x],[N(bestcreditidx).y,N(preIN).y],[linetypestr,'m']);
-                            plot([N(IN).x,N(bestcreditidx).x],[N(IN).y,N(bestcreditidx).y],[linetypestr,'m']);
-                            plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
-                            text(N(IN).x,N(IN).y,num2str(IN));
-                            hold on;
-                        end
-                        N(i).INpath=[N(i).INpath,IN];
-                        N(IN).type=2;
-                        N(IN).INn=[N(IN).INn;i,rp];
-                        N(rp).IN=IN;
-                        N(preIN).INrp=[N(preIN).INrp;IN,bestcreditidx];
-                        preIN=N(rp).IN;
-                        preRP=rp;
-                    else
-                        flag=0;
-                        % break; % 有时候还是会找不到路径
+                if sum(N(preIN).nb==IN)~=0 % 如果IN可以跟preIN通信
+                    if mod(ep,s)==0
+                        plot([N(IN).x,N(preIN).x],[N(IN).y,N(preIN).y],[linetypestr,'m']);
+                        plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
+                        text(N(IN).x,N(IN).y,num2str(IN));
+                        hold on;
                     end
+                    N(i).INpath=[N(i).INpath,IN];
+                    N(IN).type=2;
+                    N(IN).INn=[N(IN).INn;i,rp];
+                    N(rp).IN=IN;
+                    preIN=N(rp).IN;
+                    preRP=rp;
+                else % 如果IN不能跟preIN通信(运行bfs)
+                    S=[];
+                    t=[];
+                    for p=1:n
+                        for q=p:n
+                            if dis(p,q)~=inf&&(N(p).ANc==0&&N(q).ANc==0)&&(N(p).E>0&&N(q).E>0)
+                                if (N(p).type==-1||N(p).type==2)&&(N(q).type==-1||N(q).type==2)
+                                    S=[S,q];
+                                    t=[t,p];
+                                end
+                            end
+                        end
+                    end
+                    G = graph(S,t);
+                    [v,E] = bfsearch(G,preIN,'edgetonew');
+                    vc1=v(:,1);
+                    vc2=v(:,2);
+                    Win=[];
+                    INcds=[];
+                    targetnodes=[];
+                    for p=rpnbs
+                        if (N(p).type==-1||N(p).type==2)&&sum(find(S==p))>0
+                            targetnodes=[targetnodes,p];
+                            curnode=p;
+                            N(p).bfspath=[N(p).bfspath,p];
+                            while(curnode~=preIN)
+                                for q=1:size(v,1)
+                                    if curnode==vc2(q)
+                                        curnode=vc1(q);
+                                        N(p).bfspath=[curnode,N(p).bfspath];
+                                        break;
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,Eo,i);
+                    idx=1;
+                    if sum(idxin)==0
+                        N(i).flagpath=0;
+                        break; % 如果bfs还找不到，可能是网络产生分割，从preIN找不到路径了;那么就直接跳出，flagpath置0;
+                    end
+                    IN=INcds(idxin);
+                    if N(IN).ANc==1
+                        IN;
+                    end
+                    bfspath=N(IN).bfspath;
+                    for p=bfspath
+                        if p~=preIN&&p~=IN
+                            N(preIN).INrp=[N(preIN).INrp;bfspath(idx+1),p];
+                        end
+                        if p~=IN
+                            if mod(ep,s)==0
+                                plot([N(bfspath(idx)).x,N(bfspath(idx+1)).x],[N(bfspath(idx)).y,N(bfspath(idx+1)).y],[linetypestr,'m']);
+                                text(N(bfspath(idx)).x,N(bfspath(idx)).y,num2str(bfspath(idx)));
+                                hold on;
+                            end
+                        end
+                        if p~=i
+                            N(p).type=2;
+                        end
+                        idx=idx+1;
+                    end
+                    if mod(ep,s)==0
+                        plot([N(IN).x,N(rp).x],[N(IN).y,N(rp).y],['-','g']);
+                        text(N(IN).x,N(IN).y,num2str(IN));
+                    end
+                    N(i).INpath=[N(i).INpath,IN];
+                    N(IN).type=2;
+                    N(IN).INn=[N(IN).INn;i,rp];
+                    N(rp).IN=IN;
+                    preIN=IN;
+                    preRP=rp;
                 end
             end
         end
-        % 传输数据包
-        if flag
+        if N(i).flagpath
+            % 传输数据包
             for rp=N(i).path
                 if rp~=n+1 % 不是SN
                     % rp行为
@@ -339,17 +377,18 @@ for ep=1:200
         colorselect=colorselect+1;
         linetypeselect=linetypeselect+1;
     end
+    for i=EN
+        if N(i).type~=0
+            N(i).type=0; % EN可能作为rp,先复原
+        end
+    end
     for i=1:n
-        if N(i).credit<0.8
+        if N(i).credit<0.5
             N(i).ANc=1;
             if N(i).type==0
                 newEN=EN(EN~=i);
                 EN=newEN;
             end
-        end
-        if N(i).type==0&&N(i).E<=0
-            newEN=EN(EN~=i);
-            EN=newEN;
         end
     end
     ep
@@ -369,5 +408,6 @@ for i=1:n
     end
 end
 error=numFANc/numANc;
+error
 
 

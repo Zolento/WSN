@@ -1,10 +1,12 @@
-function [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,curnode,Eo,i)
+function [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,Eo,i)
     for j=targetnodes
-        flag=1; % 规定:不能复用同一条INpath上的IN；距离如果太远，也舍去
+        flag=1; % 规定:不能复用同一条INpath上的IN
         if N(j).type==2
-            for t=N(j).INn(:,1)
-                if t==i % 该IN已经在同一条INpath中
-                    flag=0;
+            if sum(N(j).INn)>0
+                for t=N(j).INn(:,1)
+                    if t==i % 该IN已经在同一条INpath中
+                        flag=0;
+                    end
                 end
             end
 %             if (N(j).x-N(curnode).x)^2+(N(j).y-N(curnode).y)^2>10^2
@@ -12,12 +14,14 @@ function [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,curnode,Eo,i)
 %             end
         end
         if (N(j).type==-1||(N(j).type==2&&flag))&&N(j).E>0&&N(i).ANc~=1
-            d=(N(j).x-N(curnode).x)^2+(N(j).y-N(curnode).y)^2;
-            Win=[Win,0.3*N(j).credit+0.3*N(j).E/Eo+0.4*30/d];
+            Win=[Win,0.5*N(j).credit+0.5*N(j).E/Eo];
             INcds=[INcds,j];
         end
     end
     [vin,idxin]=max(Win);
+    if sum(idxin)==0
+        pause(0.1);
+    end
 %     idxinmaxs=find(Win==vin); % 对符合要求的候选监督节点进一步筛选
 %     W=inf;
 %     if size(idxinmaxs,2)>1
