@@ -71,7 +71,7 @@ for i=1:n
     end
     if (N(i).x-ex)^2+(N(i).y-ey)^2<=Rs^2
         N(i).type=0;
-        N(i).E=inf; % 假设事件节点的能量为inf
+        N(i).E=inf; % 假设事件节点的能量很大
         EN=[EN,i];
     end
     if (N(i).x)^2+(N(i).y)^2<=Rc^2
@@ -89,7 +89,7 @@ dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
 %% 寻找每一个节点的RP和IN
 s=20;
-for ep=1:200
+for ep=1:400
     if mod(ep,s)==0
         figure(ep);
         para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
@@ -152,7 +152,7 @@ for ep=1:200
             if N(curnode).steps~=1
                 for j=nbs %结合能量和跳数，找出邻居中其他路由节点最少的路由节点的路径
                     rpnbtmp=0;
-                    if N(j).E>0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点不作为路由,事件节点可能作路由；不能选择已经在路径的节点
+                    if N(j).E>0&&N(j).type~=0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点\事件节点不作为路由；不能选择已经在路径的节点
                         weight=a*N(j).steps+b*Eo/N(j).E;%+0.1*rpnbtmp/size(N(j).nb,2);
                         Wrp=[Wrp,weight];
                     else
@@ -268,7 +268,7 @@ for ep=1:200
                     Win=[];
                     INcds=[];
                     targetnodes=[];
-                    for p=rpnbs
+                    for p=intersect(rpnbs,N(preRP).nb)
                         if (N(p).type==-1||N(p).type==2)&&sum(find(S==p))>0
                             targetnodes=[targetnodes,p];
                             curnode=p;
