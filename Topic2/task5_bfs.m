@@ -221,7 +221,7 @@ for ep=1:400
                     targetnodes=intersect(rpnbs,N(preRP).nb);
                 end
             else
-                targetnodes=intersect(rpnbs,N(preRP).nb); %1.先找RP的公共邻居
+                targetnodes=intersect(rpnbs,N(preRP).nb); % 先找RP的公共邻居
             end
             if rp==i % 开始，EN不需要找IN
                 % targetnodes=intersect(rpnbs,N(N(i).path(2)).nb);
@@ -269,7 +269,7 @@ for ep=1:400
                     INcds=[];
                     targetnodes=[];
                     for p=intersect(rpnbs,N(preRP).nb)
-                        if (N(p).type==-1||N(p).type==2)&&sum(find(S==p))>0
+                        if (N(p).type==-1||N(p).type==2)&&sum(find(S==p))>0&&sum(N(p).bfspath)==0
                             targetnodes=[targetnodes,p];
                             curnode=p;
                             N(p).bfspath=[N(p).bfspath,p];
@@ -291,6 +291,11 @@ for ep=1:400
                         break; % 如果bfs还找不到，可能是网络产生分割，从preIN找不到路径了;那么就直接跳出，flagpath置0;
                     end
                     IN=INcds(idxin);
+                    for p=targetnodes
+                        if p~=IN
+                            N(p).bfspath=[];
+                        end
+                    end
                     if N(IN).ANc==1
                         IN;
                     end
@@ -350,6 +355,11 @@ for ep=1:400
                         prepklen=packlen; % 初始化前跳包长
                     end
                     pklen=N(in).INnpklen; % 读取监督的RP的转发包长
+                    for p=N(in).bfspath % 如果当前IN使用了INrp，还要用INrp的rpp更新RP实际接受到的包长
+                        if p~=in&&p~=preIN
+                            prepklen=prepklen*N(p).rpp;
+                        end
+                    end
                     % 更新监督的RP或EN的信誉度
                     k=0;
                     for j=N(in).INn(:,1)
@@ -365,13 +375,14 @@ for ep=1:400
                     end
                     prepklen=N(in).INnpklen*N(in).rpp; % 更新监督到的包长，作为下一个RP实际接受到的包长
                     % IN之间也存在不完全转发，所以必须要用IN的rpp更新
-                    N(in).E=N(in).E-prepklen*Et; % 发送给下一个IN
+                    N(in).E=N(in).E-prepklen*Et; % 发送给下一个IN或INrp
                 else
                     N(in).E=N(in).E-prepklen*Er; % 接受
                     N(in).E=N(in).E-N(in).rpp*prepklen*Et; % 发送给SN
                     % 如果这时IN是SN，由于E是inf，上面的操作没有啥影响
                     % 如果这时IN是中继到SN的IN，单纯用rpp处理prepklen，然后转发就行了
                 end
+                preIN=in;
             end
         end
         colorselect=colorselect+1;
