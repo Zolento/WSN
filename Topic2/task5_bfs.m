@@ -7,8 +7,8 @@ rch=r/2;% 簇首成簇半径
 %%
 N=load('N.mat');
 N=N.N;
-a=0.5;
-b=0.5;
+a=0.7;
+b=0.3;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
@@ -24,8 +24,10 @@ EN=[];
 onestep=[];
 er=sqrt(r*rand(1));
 etheta=2*pi*rand(1);
-ex=er*cos(etheta);
-ey=er*sin(etheta);
+% ex=er*cos(etheta);
+% ey=er*sin(etheta);
+ex=-50;
+ey=50;
 %% 初始化1 需要提前固定的字段
 AN=rand(1,n);
 for i=1:n 
@@ -46,13 +48,15 @@ for i=1:n
     N(i).t=2; % 实际发送
     N(i).ANc=0; % 申明为恶意的节点
     N(i).bfspath=[]; % bfs搜索到的路径
+    N(i).rpp=0; % 转发率
+    N(i).anchorreq=0; % 如果是锚点，感知到事件节点的个数
     if AN(i)<0.05 % 恶意节点
         N(i).AN=1;
         numAN=numAN+1;
-        N(i).rpp=0.7*rand; % 转发率
+        N(i).rppavg=0.7*rand; % 转发率平均值
     else
         N(i).AN=0;
-        N(i).rpp=0.8+0.2*rand; % 转发率
+        N(i).rppavg=0.8+0.2*rand; % 转发率平均值
     end
 end
 %% 初始化2
@@ -87,9 +91,31 @@ N(n+1).steps=0;
 N(n+1).E=inf;
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
+%% 估计事件发生的位置
+anchorreqnum=[];
+anchorx=[];
+anchory=[];
+for i=EN
+    for j=N(i).nb
+        if N(j).anchor
+            N(j).anchorreq=N(j).anchorreq+1;
+        end
+    end
+end
+for i=1:n
+    if N(i).anchor&&N(i).anchorreq>0
+        anchorx=[anchorx,N(i).x];
+        anchory=[anchory,N(i).y];
+        anchorreqnum=[anchorreqnum,N(i).anchorreq];
+    end
+end
+exinfer=sum(anchorreqnum.*anchorx)/sum(anchorreqnum); % 推断出的事件位置
+eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
-s=20;
-for ep=1:400
+s=50; % 每s轮画一次图
+maxep=200; % 运行的总轮数
+rppsummary=-1*ones(n,maxep);
+for ep=1:maxep
     if mod(ep,s)==0
         figure(ep);
         para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
@@ -122,6 +148,8 @@ for ep=1:400
                 scatter(N(i).x,N(i).y,'y');            
             end
         end
+        scatter(ex,ey,'r','*'); 
+        scatter(exinfer,eyinfer,'r','+'); 
     end
     colorselect=0;
     color={'k','r','c','b'};
@@ -141,6 +169,19 @@ for ep=1:400
         N(i).IN=0;
         N(i).bfspath=[];
         N(i).flagpath=1;
+        if AN(i)<0.05 % 恶意节点0-0.7
+            if N(i).rppavg>=0.35
+                N(i).rpp=2*N(i).rppavg-0.7+2*(0.7-N(i).rppavg)*rand;
+            else
+                N(i).rpp=2*N(i).rppavg*rand;
+            end
+        else % 正常节点0.8-1
+            if N(i).rppavg>=0.9
+                N(i).rpp=2*N(i).rppavg-1+2*(1-N(i).rppavg)*rand;
+            else
+                N(i).rpp=0.8+2*(N(i).rppavg-0.8)*rand;
+            end
+        end
     end
     for i=EN
         pklen=packlen;
@@ -153,7 +194,7 @@ for ep=1:400
                 for j=nbs %结合能量和跳数，找出邻居中其他路由节点最少的路由节点的路径
                     rpnbtmp=0;
                     if N(j).E>0&&N(j).type~=0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点\事件节点不作为路由；不能选择已经在路径的节点
-                        weight=a*N(j).steps+b*Eo/N(j).E;%+0.1*rpnbtmp/size(N(j).nb,2);
+                        weight=a*N(j).steps+b*Eo/N(j).E; % 最大跳数是12
                         Wrp=[Wrp,weight];
                     else
                         Wrp=[Wrp,inf];
@@ -268,12 +309,17 @@ for ep=1:400
                     Win=[];
                     INcds=[];
                     targetnodes=[];
+                    tmp=0;
                     for p=intersect(rpnbs,N(preRP).nb)
                         if (N(p).type==-1||N(p).type==2)&&sum(find(S==p))>0&&sum(N(p).bfspath)==0
                             targetnodes=[targetnodes,p];
                             curnode=p;
                             N(p).bfspath=[N(p).bfspath,p];
                             while(curnode~=preIN)
+                                tmp=tmp+1;
+                                if tmp>100
+                                    break;
+                                end
                                 for q=1:size(v,1)
                                     if curnode==vc2(q)
                                         curnode=vc1(q);
@@ -369,7 +415,9 @@ for ep=1:400
                             if sum(find(N(i).path==v))~=0
                                 N(v).r=N(v).r+prepklen;
                                 N(v).t=N(v).t+pklen;
-                                N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度
+                                N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度(累计转发率)
+                                % rppsummary(v,ep)=N(v).t/N(v).r; % 记录本轮转发率
+                                % rppsummary(v,ep)=N(v).credit；% 记录本轮累计转发率
                             end
                         end
                     end
@@ -394,7 +442,8 @@ for ep=1:400
         end
     end
     for i=1:n
-        if N(i).credit<0.5
+        rppsummary(i,ep)=N(i).credit;
+        if N(i).credit<0.5 % 判断是不是恶意节点
             N(i).ANc=1;
             if N(i).type==0
                 newEN=EN(EN~=i);
@@ -420,5 +469,27 @@ for i=1:n
 end
 error=numFANc/numANc;
 error
-
-
+%% 记录mexep轮后的rpp
+% 就是rppsummary的最后一列
+lastrpp=rppsummary(:,maxep);
+figure(maxep+1)
+title('记录的累计转发率分布')
+scatter(1:n,lastrpp,'b')
+hold on
+for i=1:n
+    if N(i).AN
+        scatter(i,lastrpp(i),'r')
+        hold on
+    end
+end
+figure(maxep+2)
+title('实际的转发率平均值分布')
+for i=1:n
+    if N(i).AN
+        scatter(i,N(i).rppavg,'r')
+        hold on
+    else
+        scatter(i,N(i).rppavg,'b')
+        hold on
+    end
+end

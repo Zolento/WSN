@@ -15,7 +15,7 @@ N=load('N.mat');
 N=N.N;
 p=0.08; % 簇首占比
 n=500;
-Rc=50; % 通信半径
+Rc=30; % 通信半径
 Eo=1; % 初始能量
 dis=zeros(n); % 距离矩阵
 EN=[];
@@ -23,8 +23,10 @@ inRc=[]; % 在SN的Rc半径范围内的节点集合
 inRc_notEN=[]; % 在SN的Rc半径范围内但不是EN的节点集合
 er=sqrt(r*rand(1));
 etheta=2*pi*rand(1);
-ex=er*cos(etheta);
-ey=er*sin(etheta);
+% ex=er*cos(etheta);
+% ey=er*sin(etheta);
+ex = 0;
+ey = 0;
 scatter(0,0,'r');% SN
 hold on;
 para = [-Rc, -Rc, 2*Rc, 2*Rc];
@@ -57,7 +59,8 @@ for i=1:n
             N(j).nbhf = [N(j).nbhf,i];
         end
     end
-    if (N(i).x-ex)^2+(N(i).y-ey)^2<=50^2
+%     if (N(i).x-ex)^2+(N(i).y-ey)^2<=50^2
+    if (N(i).x-0)^2+(N(i).y-0)^2<=sqrt(r)^2
         if N(i).d<=50
             N(i).inrange=1;
             inRc=[inRc,i];
@@ -79,7 +82,7 @@ for i=1:n
 end
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
-%% 簇首选举
+%% 簇首选举，用这种方式确定锚点
 found=zeros(1,size(EN,2));
 target=EN;
 chsall=[]; % 存放选举出的所有簇首
@@ -155,187 +158,179 @@ while sum(found)<size(EN,2) % 对事件节点进行分簇
     r=r+1;
 end
 %% 均衡簇节点不够的簇首，为其多分配几个节点；选出每个簇的IN节点
-flag=0;
-while(~flag) 
-    flag=1;
-    for i=chsall
-        while(size(N(i).MN,2)<3)
-            nbhf_sorted=N(i).nbhf;
-            length=size(N(i).nbhf,2);
-            for p=1:length-1
-                for q=1:length-p
-                    if dis(i,nbhf_sorted(q))>dis(i,nbhf_sorted(q+1))
-                        tmp=nbhf_sorted(q);
-                        nbhf_sorted(q)=nbhf_sorted(q+1);
-                        nbhf_sorted(q+1)=tmp;
-                    end
-                end
-            end
-            
-            for j=nbhf_sorted
-                if N(j).EN==1&&N(j).type==0&&size(N(N(j).cluster).MN,2)>3&&size(N(i).MN,2)<3
-                    N(i).MN=[N(i).MN,j];
-                    tmp=[];
-                    for k=N(N(j).cluster).MN
-                        if k~=j
-                            tmp=[tmp,k];
-                        end
-                    end
-                    N(N(j).cluster).MN=tmp;
-                    N(j).cluster=i;
-                    plot([N(i).x,N(j).x],[N(i).y,N(j).y],'c');
-                    hold on;
-                    flag=0; % 发生了重分配，flag置0
-                end
-            end
-        end
-    end
-end
-for i=chsall
-    
-end
+% flag=0;
+% while(~flag) 
+%     flag=1;
+%     for i=chsall
+%         while(size(N(i).MN,2)<1)
+%             nbhf_sorted=N(i).nbhf;
+%             length=size(N(i).nbhf,2);
+%             for p=1:length-1
+%                 for q=1:length-p
+%                     if dis(i,nbhf_sorted(q))>dis(i,nbhf_sorted(q+1))
+%                         tmp=nbhf_sorted(q);
+%                         nbhf_sorted(q)=nbhf_sorted(q+1);
+%                         nbhf_sorted(q+1)=tmp;
+%                     end
+%                 end
+%             end
+%             
+%             for j=nbhf_sorted
+%                 if N(j).EN==1&&N(j).type==0&&size(N(N(j).cluster).MN,2)>3&&size(N(i).MN,2)<3
+%                     N(i).MN=[N(i).MN,j];
+%                     tmp=[];
+%                     for k=N(N(j).cluster).MN
+%                         if k~=j
+%                             tmp=[tmp,k];
+%                         end
+%                     end
+%                     N(N(j).cluster).MN=tmp;
+%                     N(j).cluster=i;
+%                     plot([N(i).x,N(j).x],[N(i).y,N(j).y],'c');
+%                     hold on;
+%                     flag=0; % 发生了重分配，flag置0
+%                 end
+%             end
+%         end
+%     end
+% end
 %% 计算簇首邻接矩阵
-chsalllen=size(chsall,2);
-dis_2=zeros(chsalllen+1);
-mind_2=inf;
-numinRc=0;
-innerRP=[];
-T=2;
-for i=1:chsalllen
-    if mind_2(1)>sqrt(N(chsall(i)).x^2+N(chsall(i)).y^2)
-       mind_2=[sqrt(N(chsall(i)).x^2+N(chsall(i)).y^2),i];
-    end
-    if N(chsall(i)).inrange==1
-        dis_2(i,chsalllen+1)=N(chsall(i)).d^2;
-        numinRc=numinRc+1;
-    end
-    for j=i:chsalllen
-        if size(find(N(chsall(i)).nb==chsall(j)),2)~=0
-            dis_2(i,j)=dis(chsall(i),chsall(j))^2;
-%             plot([N(chsall(i)).x,N(chsall(j)).x],[N(chsall(i)).y,N(chsall(j)).y],'k');
+% chsalllen=size(chsall,2);
+% dis_2=zeros(chsalllen+1);
+% mind_2=inf;
+% numinRc=0;
+% innerRP=[];
+% T=2;
+% for i=1:chsalllen
+%     if mind_2(1)>sqrt(N(chsall(i)).x^2+N(chsall(i)).y^2)
+%        mind_2=[sqrt(N(chsall(i)).x^2+N(chsall(i)).y^2),i];
+%     end
+%     if N(chsall(i)).inrange==1
+%         dis_2(i,chsalllen+1)=N(chsall(i)).d^2;
+%         numinRc=numinRc+1;
+%     end
+%     for j=i:chsalllen
+%         if size(find(N(chsall(i)).nb==chsall(j)),2)~=0
+%             dis_2(i,j)=dis(chsall(i),chsall(j))^2;
+% %             plot([N(chsall(i)).x,N(chsall(j)).x],[N(chsall(i)).y,N(chsall(j)).y],'k');
+% %             hold on;
+%         end
+%     end
+% end
+% dis_2=dis_2+dis_2';
+% dis_2(dis_2==0|dis_2>Rc^2)=inf;
+% if 0<=numinRc&&numinRc<=T % 如果在一跳范围内的簇首个数小于一定的值
+%  % 把最近的簇首的内圈范围内的点都用作中继(实际上内圈最远的情况也差不多略大于Rc)
+%     root=mind_2(2);
+%     flag=0;
+%     for i=inRc_notEN
+%         if dis(i,chsall(root))<N(chsall(root)).d&&N(i).d<N(chsall(root)).d
+%             innerRP=[innerRP,i];
+%         end
+%     end
+%     targetnode=[chsall,innerRP]; % 添加内圈节点
+%     targetnodelen=size(targetnode,2);
+%     dis_2=zeros(targetnodelen+1); % 重新计算距离矩阵
+%     for i=1:targetnodelen
+%         if N(targetnode(i)).inrange==1
+%             dis_2(i,targetnodelen+1)=N(targetnode(i)).d^2;
+%             numinRc=numinRc+1;
+%         end
+%         for j=i:targetnodelen
+%             dis_2(i,j)=dis(targetnode(i),targetnode(j))^2;
+%         end
+%     end
+%     dis_2=dis_2+dis_2';
+%     dis_2(dis_2==0|dis_2>Rc^2)=inf;
+%     found=zeros(1,targetnodelen+1);
+%     found(targetnodelen+1)=1;
+%     d_2=zeros(1,targetnodelen+1);
+%     d_2(1:targetnodelen)=inf;
+%     pre_node=-1*ones(1,targetnodelen+1);
+%     path=-1*ones(1,targetnodelen+1);
+%     root=targetnodelen+1; % root重新指向SN
+% else % 如果在一跳范围内的簇首个数足够多
+%     flag=1;
+%     found=zeros(1,chsalllen+1);
+%     found(chsalllen+1)=1;
+%     d_2=zeros(1,chsalllen+1);
+%     d_2(1:chsalllen)=inf;
+%     pre_node=-1*ones(1,chsalllen+1);
+%     path=-1*ones(1,chsalllen+1);
+%     root=chsalllen+1; % root直接指向SN
+% end
+% if ~flag
+%     pathnodes=targetnode;
+% else
+%     pathnodes=chsall;
+% end
+% % 画出最近的簇首的内圈范围
+% SNsr=sqrt(N(chsall(mind_2(2))).x^2+N(chsall(mind_2(2))).y^2);
+% para = [-SNsr, -SNsr, 2*SNsr, 2*SNsr];
+% rectangle('Position', para, 'Curvature', [1 1]);
+% hold on;
+% % 画出参与路由的节点序号
+% for i=pathnodes
+%     c = num2str(i);
+%     text(N(i).x,N(i).y,c);
+%     hold on;
+% end
+% %% 寻找簇首到SN的路径(d^2最小)
+% SNs=root;
+% % 求路径 run dijkstra
+% while sum(found)<size(found,2)  %看是否所有的点都标记为P标号
+%     target=find(found==0); 
+%     dtmp=d_2;
+%     d_2(target)=min(d_2(target),d_2(SNs)+dis_2(SNs,target));%对还没有存入found的点更新最短通路
+%     minp_nodeidx=find(d_2(target)==min(d_2(target)));
+%     updated=find(d_2(target)~=dtmp(target));%最短路径被更新过的节点
+%     if size(updated,2)~=0
+%         pre_node(target(updated))=SNs;
+%     end
+% %     for i=minp_nodeidx
+%     SNs=target(minp_nodeidx(1));   %将当前符合最短通路的且离SN最近的节点设为源点
+%     found(SNs)=1;%已找到最小路径 found(i)=1
+%     path(SNs)=pre_node(SNs);
+%     k=path(SNs); % 画出所有路径
+%     p=SNs;
+%     if k<=size(pathnodes,2)
+%         plot([N(pathnodes(p)).x,N(pathnodes(k)).x],[N(pathnodes(p)).y,N(pathnodes(k)).y],'k');
+%         hold on;
+%     else
+%         plot([N(pathnodes(p)).x,0],[N(pathnodes(p)).y,0],'k');
+%         hold on;
+%     end
+% end
+% path(path==size(path,2))=-1; % 将指向SN的置为-1
+% %% 输出路径 v2;找前一跳是RP的簇首
+% path_traceback=cell(1,chsalllen);
+% E=zeros(1,chsalllen);
+% Ed=zeros(1,chsalllen);
+% N_RP=[];
+% for i=1:chsalllen
+%     curnode=i;
+%     Ed(i)=N(pathnodes(i)).d^2;
+%     while curnode~=-1
+%         path_traceback{i}=[pathnodes(curnode),path_traceback{i}];
+%         curnode=path(curnode);
+%     end
+%     pathtmp=path_traceback{i};
+%     if size(pathtmp,2)>2&&size(find(innerRP==pathtmp(end-1)),2)~=0
+%         N_RP=[N_RP,i];
+%     end
+%     for j=1:size(pathtmp,2)
+%         if j==1
+%             E(i)=E(i)+N(pathtmp(j)).x^2+N(pathtmp(j)).y^2;
+%             plot([0,N(pathtmp(j)).x],[0,N(pathtmp(j)).y],'k');
 %             hold on;
-        end
-    end
-end
-dis_2=dis_2+dis_2';
-dis_2(dis_2==0|dis_2>Rc^2)=inf;
-if 0<=numinRc&&numinRc<=T % 如果在一跳范围内的簇首个数小于一定的值
- % 把最近的簇首的内圈范围内的点都用作中继(实际上内圈最远的情况也差不多略大于Rc)
-    root=mind_2(2);
-    flag=0;
-    for i=inRc_notEN
-        if dis(i,chsall(root))<N(chsall(root)).d&&N(i).d<N(chsall(root)).d
-            innerRP=[innerRP,i];
-        end
-    end
-    targetnode=[chsall,innerRP]; % 添加内圈节点
-    targetnodelen=size(targetnode,2);
-    dis_2=zeros(targetnodelen+1); % 重新计算距离矩阵
-    for i=1:targetnodelen
-        if N(targetnode(i)).inrange==1
-            dis_2(i,targetnodelen+1)=N(targetnode(i)).d^2;
-            numinRc=numinRc+1;
-        end
-        for j=i:targetnodelen
-            dis_2(i,j)=dis(targetnode(i),targetnode(j))^2;
-        end
-    end
-    dis_2=dis_2+dis_2';
-    dis_2(dis_2==0|dis_2>Rc^2)=inf;
-    found=zeros(1,targetnodelen+1);
-    found(targetnodelen+1)=1;
-    d_2=zeros(1,targetnodelen+1);
-    d_2(1:targetnodelen)=inf;
-    pre_node=-1*ones(1,targetnodelen+1);
-    path=-1*ones(1,targetnodelen+1);
-    root=targetnodelen+1; % root重新指向SN
-else % 如果在一跳范围内的簇首个数足够多
-    flag=1;
-    found=zeros(1,chsalllen+1);
-    found(chsalllen+1)=1;
-    d_2=zeros(1,chsalllen+1);
-    d_2(1:chsalllen)=inf;
-    pre_node=-1*ones(1,chsalllen+1);
-    path=-1*ones(1,chsalllen+1);
-    root=chsalllen+1; % root直接指向SN
-end
-if ~flag
-    pathnodes=targetnode;
-else
-    pathnodes=chsall;
-end
-% 画出最近的簇首的内圈范围
-SNsr=sqrt(N(chsall(mind_2(2))).x^2+N(chsall(mind_2(2))).y^2);
-para = [-SNsr, -SNsr, 2*SNsr, 2*SNsr];
-rectangle('Position', para, 'Curvature', [1 1]);
-hold on;
-% 画出参与路由的节点序号
-for i=pathnodes
-    c = num2str(i);
-    text(N(i).x,N(i).y,c);
-    hold on;
-end
-%% 寻找簇首到SN的路径(d^2最小)
-SNs=root;
-% 求路径 run dijkstra
-while sum(found)<size(found,2)  %看是否所有的点都标记为P标号
-    target=find(found==0); 
-    dtmp=d_2;
-    d_2(target)=min(d_2(target),d_2(SNs)+dis_2(SNs,target));%对还没有存入found的点更新最短通路
-    minp_nodeidx=find(d_2(target)==min(d_2(target)));
-    updated=find(d_2(target)~=dtmp(target));%最短路径被更新过的节点
-    if size(updated,2)~=0
-        pre_node(target(updated))=SNs;
-    end
-%     for i=minp_nodeidx
-    SNs=target(minp_nodeidx(1));   %将当前符合最短通路的且离SN最近的节点设为源点
-    found(SNs)=1;%已找到最小路径 found(i)=1
-    path(SNs)=pre_node(SNs);
-    k=path(SNs); % 画出所有路径
-    p=SNs;
-    if k<=size(pathnodes,2)
-        plot([N(pathnodes(p)).x,N(pathnodes(k)).x],[N(pathnodes(p)).y,N(pathnodes(k)).y],'k');
-        hold on;
-    else
-        plot([N(pathnodes(p)).x,0],[N(pathnodes(p)).y,0],'k');
-        hold on;
-    end
-end
-path(path==size(path,2))=-1; % 将指向SN的置为-1
-%% 输出路径 v2;找前一跳是RP的簇首
-path_traceback=cell(1,chsalllen);
-E=zeros(1,chsalllen);
-Ed=zeros(1,chsalllen);
-N_RP=[];
-for i=1:chsalllen
-    curnode=i;
-    Ed(i)=N(pathnodes(i)).d^2;
-    while curnode~=-1
-        path_traceback{i}=[pathnodes(curnode),path_traceback{i}];
-        curnode=path(curnode);
-    end
-    pathtmp=path_traceback{i};
-    if size(pathtmp,2)>2&&size(find(innerRP==pathtmp(end-1)),2)~=0
-        N_RP=[N_RP,i];
-    end
-    for j=1:size(pathtmp,2)
-        if j==1
-            E(i)=E(i)+N(pathtmp(j)).x^2+N(pathtmp(j)).y^2;
-            plot([0,N(pathtmp(j)).x],[0,N(pathtmp(j)).y],'k');
-            hold on;
-        else
-            E(i)=E(i)+(N(pathtmp(j)).x-N(pathtmp(j-1)).x)^2+(N(pathtmp(j)).y-N(pathtmp(j-1)).y)^2;
-            plot([N(pathtmp(j)).x,N(pathtmp(j-1)).x],[N(pathtmp(j)).y,N(pathtmp(j-1)).y],'k');
-            hold on;
-        end
-    end
-end
-%% 寻找RP的监督节点
-for i=N_RP
-    for j=path_traceback{i}
-        
-    end
-end
+%         else
+%             E(i)=E(i)+(N(pathtmp(j)).x-N(pathtmp(j-1)).x)^2+(N(pathtmp(j)).y-N(pathtmp(j-1)).y)^2;
+%             plot([N(pathtmp(j)).x,N(pathtmp(j-1)).x],[N(pathtmp(j)).y,N(pathtmp(j-1)).y],'k');
+%             hold on;
+%         end
+%     end
+% end
+%%
 
 
 
