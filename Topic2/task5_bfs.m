@@ -6,8 +6,8 @@ r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
 load 'N.mat' N
-a=0.9;
-b=0.1;
+a=0.3;
+b=0.7;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
@@ -20,6 +20,7 @@ Er=0.0001; % 接收一个数据包消耗能量
 packlen=20; % 20个数据包
 dis=zeros(n); % 距离矩阵
 EN=[];
+ABN=[];
 onestep=[];
 er=sqrt(r*rand(1));
 etheta=2*pi*rand(1);
@@ -27,10 +28,13 @@ etheta=2*pi*rand(1);
 % ey=er*sin(etheta);
 ex=52;
 ey=93;
+abx=3; % 恶劣天气发生地点
+aby=50;
 %% 初始化1 需要提前固定的字段
 AN=rand(1,n);
 for i=1:n 
-    N(i).ispath=0; % 标志为参加过路由
+    N(i).ispath=0; % 参加过路由标志
+    N(i).isabnormal=0; % 受恶劣天气影响标志
     N(i).type=-1; % 普通节点 -1 事件节点(EN 0) 中继节点（RP 1） 监督节点（IN 2)
     N(i).steps=0; % 跳数
     N(i).E=Eo; % 初始能量
@@ -54,7 +58,7 @@ for i=1:n
         N(i).AN=1;
         numAN=numAN+1;
         N(i).rppavg=0.7*rand; % 转发率平均值
-    else
+    else 
         N(i).AN=0;
         N(i).rppavg=0.8+0.2*rand; % 转发率平均值
     end
@@ -77,6 +81,10 @@ for i=1:n
         N(i).type=0;
         N(i).E=inf; % 假设事件节点的能量很大
         EN=[EN,i];
+    end
+    if (N(i).x-abx)^2+(N(i).y-aby)^2<=Rc^2
+        N(i).isabnormal=1;
+        ABN=[ABN,i];
     end
     if (N(i).x)^2+(N(i).y)^2<=Rc^2
         onestep=[onestep,i];
@@ -113,7 +121,7 @@ exinfer=sum(anchorreqnum.*anchorx)/sum(anchorreqnum); % 推断出的事件位置
 eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
 s=50; % 每s轮画一次图
-maxep=300; % 运行的总轮数
+maxep=200; % 运行的总轮数
 rppsummary=-1*ones(n,maxep);
 for ep=1:maxep
     if mod(ep,s)==0
@@ -121,6 +129,9 @@ for ep=1:maxep
         para = [-sqrt(r), -sqrt(r), 2*sqrt(r), 2*sqrt(r)];
         rectangle('Position', para, 'Curvature', [1 1]);
         para = [ex-Rs, ey-Rs, 2*Rs, 2*Rs];
+        rectangle('Position', para, 'Curvature', [1 1]);
+        hold on;
+        para = [abx-Rs, aby-Rs, 2*Rs, 2*Rs];
         rectangle('Position', para, 'Curvature', [1 1]);
         hold on;
         for i=1:3
@@ -181,6 +192,9 @@ for ep=1:maxep
             else
                 N(i).rpp=0.8+2*(N(i).rppavg-0.8)*rand;
             end
+        end
+        if N(i).isabnormal
+            N(i).rpp=N(i).rpp*0.5;
         end
     end
     for i=EN
@@ -275,6 +289,7 @@ for ep=1:maxep
                 [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,Eo,i);
                 IN=INcds(idxin); % 此处的两个RP间的IN默认存在，假如没有我也不知道怎么办
                 if sum(IN)==0
+                    N(i).flagpath=0;
                     break;
                 end
                 if sum(N(preIN).nb==IN)~=0 % 如果IN可以跟preIN通信
@@ -465,22 +480,31 @@ end
 lastrpp=rppsummary(:,maxep);
 figure(maxep+1)
 title('记录的累计转发率分布')
-scatter(1:n,lastrpp,'b')
-hold on
 for i=1:n
     if N(i).AN
         scatter(i,lastrpp(i),'r')
         hold on
+    else
+        scatter(i,lastrpp(i),'b')
+        hold on
+    end
+    if N(i).isabnormal
+        scatter(i,lastrpp(i),'k','+')
+        hold on
     end
 end
 figure(maxep+2)
-title('实际的转发率平均值分布')
+title('理想的转发率平均值分布')
 for i=1:n
     if N(i).AN
         scatter(i,N(i).rppavg,'r')
         hold on
     else
         scatter(i,N(i).rppavg,'b')
+        hold on
+    end
+    if N(i).isabnormal
+        scatter(i,N(i).rppavg,'k','+')
         hold on
     end
 end
@@ -495,7 +519,7 @@ title('聚类结果')
 m=max(lastrpp);
 X=[(0:m/n:m-m/n)',lastrpp];
 scatter(X(:,1),X(:,2))
-idx = dbscan(X,0.1,5);
+idx = dbscan(X,0.1,7);
 gscatter(X(:,1),X(:,2),idx);
 %% 计算误检率
 numANc=0;
