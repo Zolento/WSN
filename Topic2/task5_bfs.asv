@@ -5,7 +5,8 @@ close all;
 r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
-load 'N.mat' N
+N=load('N.mat','N');
+N=N.N;
 a=0.9;
 b=0.1;
 c=0.1;
