@@ -5,11 +5,12 @@ load 'NwithResults.mat' N
 %% 记录mexep轮后的rpp
 % 就是rppsummary的最后一列
 n=500;
-maxep=600;
+maxep=400;
 sr=200;
 lastrpp=zeros(1,n);
 numANc=0;
 numFANc=0;
+numAN=0;
 for i=1:n
     N(i).del=0;
 end
@@ -79,27 +80,27 @@ for ep=1:maxep
                     end
                 end
                 if N(i).ispath
-                    varsummary(i)=var([1,tmp]);
+                    varsummary(i)=var(tmp);
                 else
                     varsummary(i)=0;
                 end
                 X(i,1)=N(i).credit;
-                X(i,2)=varsummary(i);% /(mean(tmp)+1e-3);
-                X(i,3)=mean(tmp);
+                X(i,2)=varsummary(i);%mean(tmp);
+                X(i,3)=sqrt(varsummary(i))/(mean(tmp));% 
             else
                 X(i,:)=0;
             end
         end
-%         X(:,2)=X(:,2)/max(X(:,2));
-%         X(:,3)=X(:,3)/max(X(:,3));
+        X(:,2)=X(:,2)/max(X(:,2));
+        X(:,3)=X(:,3)/max(X(:,3));
         figure(maxep+4*(rd-1)+3)
         title('聚类结果')
 %         xlabel('normed VAR')
 %         ylabel('CFR')
         if rd==1
-            idx=dbscan(X,0.1,5);
-        else
             idx=dbscan(X,0.1,7);
+        else
+            idx=dbscan(X,0.1,3);
         end
         for i=1:n
             if ~N(i).del&&N(i).ispath
@@ -128,7 +129,6 @@ for ep=1:maxep
                     scatter3(X(i,1),X(i,2),X(i,3),'r')
                     hold on
                 else
-                    text(X(i,1),X(i,2),X(i,3),num2str(i));
                     scatter3(X(i,1),X(i,2),X(i,3),'b')
                     hold on
                 end
@@ -138,28 +138,27 @@ for ep=1:maxep
                 end
             end
         end
-        % 计算误检率
         numMissANc=0;
-        numAN=0;
+        % 计算误检率和漏检率
         for i=1:n
             if idx(i)==-1&&N(i).ispath&&~N(i).del
                 N(i).del=1;
                 N(i).ANc=1;
-                numANc=numANc+1;
+                % numANc=numANc+1;
                 if ~N(i).AN
                     numFANc=numFANc+1;
                 end
             end
             if N(i).AN&&N(i).ispath
-                numAN=numAN+1;
+                % numAN=numAN+1;
                 if ~N(i).ANc
                     numMissANc=numMissANc+1;
                 end
             end
         end
         error=numFANc/25;
-        fprintf('第%d个200轮误检率:%f\n',rd,error);
+        fprintf('第%d个200轮累计误检率:%f\n',rd,error);
         misserror=numMissANc/25;
-        fprintf('第%d个200轮漏检率:%f\n',rd,misserror);
+        fprintf('第%d个200轮累计漏检率:%f\n',rd,misserror);
     end
 end

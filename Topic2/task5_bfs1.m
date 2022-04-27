@@ -6,8 +6,8 @@ r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
 load 'N.mat' N
-a=0.5;
-b=0.5;
+a=0.7;
+b=0.3;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
@@ -24,10 +24,10 @@ ABN=[];
 onestep=[];
 er=sqrt(r*rand(1));
 etheta=2*pi*rand(1);
-% ex=er*cos(etheta);
-% ey=er*sin(etheta);
-ex=52;
-ey=93;
+ex=er*cos(etheta);
+ey=er*sin(etheta);
+% ex=52;
+% ey=93;
 abx=3; % 恶劣天气发生地点
 aby=50;
 %% 初始化1 需要提前固定的字段
@@ -132,7 +132,7 @@ end
 exinfer=sum(anchorreqnum.*anchorx)/sum(anchorreqnum); % 推断出的事件位置
 eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
-s=400; % 每s轮画一次图
+s=200; % 每s轮画一次图
 sr=200; % 每sr轮统计一次rpp(ICFR)
 maxep=400; % 运行的总轮数
 rppsummary=-1*ones(n,maxep);
@@ -225,7 +225,7 @@ for ep=1:maxep
                 for j=nbs %结合能量和跳数，找出邻居中其他路由节点最少的路由节点的路径
                     rpnbtmp=0;
                     if N(j).E>0&&N(j).type~=0&&N(j).type~=2&&N(j).ANc~=1&&size(find(N(i).path==j),2)==0 % 监督节点\事件节点不作为路由；不能选择已经在路径的节点
-                        weight=a*N(j).steps+b*Eo/N(j).E; % 最大跳数是12
+                        weight=a*N(j).steps/12+b*Eo/N(j).E; % 最大跳数是12
                         Wrp=[Wrp,weight];
                     else
                         Wrp=[Wrp,inf];
@@ -418,6 +418,7 @@ for ep=1:maxep
             if N(i).flagpath
                 % 传输数据包
                 for rp=N(i).path
+                    Etmp=N(rp).E;
                     if rp~=n+1 % 不是SN
                         % rp行为
                         if rp~=i % 不是起始的事件节点
@@ -431,11 +432,13 @@ for ep=1:maxep
                         % rp行为
                         N(rp).E=N(rp).E-pklen*Et; % 选择性转发给下一个
                     end
+                    if N(rp).type==0
+                        N(rp).E=Etmp;
+                    end
                 end
                 % IN结算转发率
                 for in=N(i).INpath
                     if in~=N(i).INpath(end) % 不是SN或者中继到SN的IN
-                        N(in).ispath=1;
                         if in~=N(i).INpath(1) % 不是起始的事件节点的IN
                             N(in).E=N(in).E-prepklen*Er; % 接受
                         else
@@ -457,7 +460,7 @@ for ep=1:maxep
                                     N(v).r=N(v).r+prepklen;
                                     N(v).t=N(v).t+pklen;
                                     N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度(累计转发率)
-                                    N(v).ICFR=pklen/prepklen; % 本轮转发率
+                                    N(v).ICFR=N(v).rpp;%pklen/prepklen; % 本轮转发率
                                     if N(v).ICFR>1
                                         N(v).ICFR=1;
                                     end
@@ -486,16 +489,20 @@ for ep=1:maxep
         end
     end
     for i=EN
-        if N(i).type~=0
-            N(i).type=0; % EN可能作为rp,先复原
-        end
+        N(i).type=-1; % EN可能作为rp,先复原
     end
+    EN=[];
+    ep
+    er=sqrt(r*rand(1));
+    etheta=2*pi*rand(1);
+    ex=er*cos(etheta);
+    ey=er*sin(etheta);
     for i=1:n
         rppsummary(i,ep)=N(i).ICFR;
-    end
-    ep
-    if sum(EN)==0
-        break;
+        if (N(i).x-ex)^2+(N(i).y-ey)^2<=Rs^2&&N(i).E>0&&~N(i).ANc
+            N(i).type=0;
+            EN=[EN,i];
+        end
     end
     if mod(ep,sr)==0
         rd=floor(ep/sr);
@@ -557,24 +564,24 @@ for ep=1:maxep
                     varsummary(i)=0;
                 end
                 X(i,1)=lastrpp(i);
-                X(i,2)=varsummary(i);% /(mean(tmp)+1e-3);
+                X(i,2)=sqrt(varsummary(i))/(mean(tmp));% 
                 X(i,3)=mean(tmp);
             else
                 X(i,:)=0;
             end
         end
-%         X(:,2)=X(:,2)/max(X(:,2));
+        X(:,2)=X(:,2)/max(X(:,2));
 %         X(:,3)=X(:,3)/max(X(:,3));
         figure(maxep+4*(rd-1)+3)
         title('聚类结果')
         if rd==1
-            idx=dbscan(X,0.1,6);
+            idx=dbscan(X,0.1,5);
         else
             idx=dbscan(X,0.1,3);
         end
         for i=1:n
             if ~N(i).del
-                if idx(i)==-1
+                if idx(i)==-1&&N(i).ispath
                     scatter3(X(i,1),X(i,2),X(i,3),'r');
                     hold on;
                 elseif idx(i)==2
@@ -589,7 +596,7 @@ for ep=1:maxep
         figure(maxep+4*(rd-1)+4)
         title('实际情况')
         for i=1:n
-            if ~N(i).del
+            if ~N(i).del&&N(i).ispath
                 if N(i).AN
                     text(X(i,1),X(i,2),X(i,3),num2str(i));
                     scatter3(X(i,1),X(i,2),X(i,3),'r')
@@ -600,10 +607,6 @@ for ep=1:maxep
                 end
                 if N(i).isabnormal
                     scatter3(X(i,1),X(i,2),X(i,3),'k','+');
-                    hold on;
-                end
-                if ~N(i).ispath
-                    scatter3(X(i,1),X(i,2),X(i,3),'k','*');
                     hold on;
                 end
             end
