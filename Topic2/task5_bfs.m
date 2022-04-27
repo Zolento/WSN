@@ -6,8 +6,8 @@ r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
 load 'N.mat' N
-a=0.4;
-b=0.6;
+a=0.5;
+b=0.5;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
@@ -31,7 +31,19 @@ ey=93;
 abx=3; % 恶劣天气发生地点
 aby=50;
 %% 初始化1 需要提前固定的字段
-AN=rand(1,n);
+% AN=rand(1,n);
+while numAN<25
+    for i=1:n
+        tmp=rand;
+        if tmp<=0.05&&~N(i).AN
+            N(i).AN=1;
+            numAN=numAN+1;
+            if numAN>=25
+                break;
+            end
+        end
+    end
+end
 for i=1:n 
     N(i).ispath=0; % 参加过路由标志
     N(i).isabnormal=0; % 受恶劣天气影响标志
@@ -56,12 +68,9 @@ for i=1:n
     N(i).bfspath=[]; % bfs搜索到的路径
     N(i).rpp=0; % 转发率
     N(i).anchorreq=0; % 如果是锚点，感知到事件节点的个数
-    if AN(i)<0.05 % 恶意节点
-        N(i).AN=1;
-        numAN=numAN+1;
+    if N(i).AN % 恶意节点
         N(i).rppavg=0.7*rand; % 转发率平均值
     else 
-        N(i).AN=0;
         N(i).rppavg=0.8+0.2*rand; % 转发率平均值
     end
 end
@@ -99,6 +108,7 @@ N(n+1).nb=onestep;
 N(n+1).type=-1;
 N(n+1).steps=0;
 N(n+1).E=inf;
+N(n+1).ispath={};
 dis=dis+dis';
 dis(dis>Rc|dis==0)=inf;
 %% 估计事件发生的位置
@@ -124,8 +134,10 @@ eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
 s=100; % 每s轮画一次图
 sr=200; % 每sr轮统计一次rpp(ICFR)
-maxep=400; % 运行的总轮数
+maxep=600; % 运行的总轮数
 rppsummary=-1*ones(n,maxep);
+numANc=0;
+numFANc=0;
 for ep=1:maxep
     if mod(ep,s)==0
         figure(ep);
@@ -184,7 +196,7 @@ for ep=1:maxep
         N(i).bfspath=[];
         N(i).flagpath=1;
         N(i).deadpath=0;
-        if AN(i)<0.05 % 恶意节点0-0.7
+        if N(i).AN % 恶意节点0-0.7
             if N(i).rppavg>=0.35
                 N(i).rpp=2*N(i).rppavg-0.7+2*(0.7-N(i).rppavg)*rand;
             else
@@ -264,7 +276,9 @@ for ep=1:maxep
             preIN=i;
             preRP=i;
             for rp=N(i).path
-                N(rp).ispath=1;
+                if rp~=n+1
+                    N(rp).ispath=1;
+                end
                 rpnbs=N(rp).nb;
                 preINnbs=N(preIN).nb;
                 Win=[];
@@ -339,11 +353,12 @@ for ep=1:maxep
                                 targetnodes=[targetnodes,p];
                                 curnode=p;
                                 N(p).bfspath=[N(p).bfspath,p];
+                                tmp=0;
                                 while(curnode~=preIN)
-    %                                 tmp=tmp+1;
-    %                                 if tmp>100
-    %                                     break;
-    %                                 end
+                                    tmp=tmp+1;
+                                    if tmp>100
+                                        break;
+                                    end
                                     for q=1:size(v,1)
                                         if curnode==vc2(q)
                                             curnode=vc1(q);
@@ -440,13 +455,14 @@ for ep=1:maxep
                                     N(v).r=N(v).r+prepklen;
                                     N(v).t=N(v).t+pklen;
                                     N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度(累计转发率)
-                                    N(v).ICFR=pklen/prepklen; % 本轮转发率
+                                    N(v).ICFR=N(v).rpp;%pklen/prepklen; % 本轮转发率
                                     if N(v).ICFR>1
                                         N(v).ICFR=1;
                                     end
-                                    if N(v).credit>1 % 如果信誉度大于1了，直接置1;一个节点有没有参与路由从ispath字段看
+                                    if N(v).credit>=1 % 如果信誉度大于1了，直接置1;一个节点有没有参与路由从ispath字段看
                                         N(v).credit=1;
-                                        N(i).r=N(i).t;
+                                        N(v).r=10;
+                                        N(v).t=10;
                                     end
                                 end
                             end
@@ -479,117 +495,146 @@ for ep=1:maxep
     if sum(EN)==0
         break;
     end
-%     if mod(ep,sr)==0
-%         rd=floor(ep/sr);
-%         % 就是rppsummary的最后一列
-%         rppsummaryslice=rppsummary(:,(rd-1)*sr+1:rd*sr);
-%         varsummary=zeros(1,n);
-%         X=zeros(n,3);
-%         lastrpp=rppsummaryslice(:,end);
+    if mod(ep,sr)==0
+        rd=floor(ep/sr);
+        % 就是rppsummary的最后一列
+        rppsummaryslice=rppsummary(:,(rd-1)*sr+1:rd*sr);
+        varsummary=zeros(1,n);
+        X=zeros(n,3);
+        for i=1:n
+            lastrpp(i)=N(i).credit;
+        end
 %         figure(maxep+4*(rd-1)+1)
 %         title('记录的累计转发率分布')
 %         for i=1:n
-%             if N(i).AN
-%                 scatter(i,lastrpp(i),'r')
-%                 hold on
-%             else
-%                 scatter(i,lastrpp(i),'b')
-%                 hold on
-%             end
-%             if N(i).isabnormal
-%                 scatter(i,lastrpp(i),'k','+')
-%                 hold on
+%             if ~N(i).del
+%                 if N(i).AN
+%                     scatter(i,lastrpp(i),'r')
+%                     hold on
+%                 else
+%                     scatter(i,lastrpp(i),'b')
+%                     hold on
+%                 end
+%                 if N(i).isabnormal
+%                     scatter(i,lastrpp(i),'k','+')
+%                     hold on
+%                 end
 %             end
 %         end
 %         figure(maxep+4*(rd-1)+2)
 %         title('理想的转发率平均值分布')
 %         for i=1:n
-%             if N(i).AN
-%                 scatter(i,N(i).rppavg,'r')
-%                 hold on
-%             else
-%                 scatter(i,N(i).rppavg,'b')
-%                 hold on
-%             end
-%             if N(i).isabnormal
-%                 scatter(i,N(i).rppavg,'k','+')
-%                 hold on
-%             end
-%         end
-%         %% dbscan聚类
-%         for i=1:n
-%             tmp=[];
-%             pretmp=1;
-%             for j=1:sr
-%                 if rppsummaryslice(i,j)<1&&rppsummaryslice(i,j)~=pretmp
-%                     tmp=[tmp,rppsummaryslice(i,j)];
-%                     pretmp=rppsummaryslice(i,j);
+%             if ~N(i).del
+%                 if N(i).AN
+%                     scatter(i,N(i).rppavg,'r')
+%                     hold on
+%                 else
+%                     scatter(i,N(i).rppavg,'b')
+%                     hold on
+%                 end
+%                 if N(i).isabnormal
+%                     scatter(i,N(i).rppavg,'k','+')
+%                     hold on
 %                 end
 %             end
-%             if N(i).ispath
-%                 varsummary(i)=var([1,tmp]);
-%             else
-%                 varsummary(i)=0;
-%             end
-%             X(i,1)=varsummary(i);
-%             X(i,2)=lastrpp(i);
-%             X(i,3)=sqrt(var([1,tmp]))/mean([1,tmp]);
 %         end
-%         X(:,1)=X(:,1)/max(X(:,1));
+        % dbscan聚类
+        for i=1:n
+            tmp=[];
+            if ~N(i).del
+                pretmp=-1;
+                for j=1:sr
+                    if rppsummaryslice(i,j)~=pretmp
+                        tmp=[tmp,rppsummaryslice(i,j)];
+                        pretmp=rppsummaryslice(i,j);
+                    end
+                end
+                if N(i).ispath
+                    varsummary(i)=var([1,tmp]);
+                else
+                    varsummary(i)=0;
+                end
+                X(i,1)=lastrpp(i);
+                X(i,2)=varsummary(i);% /(mean(tmp)+1e-3);
+                X(i,3)=mean(tmp);
+            else
+                X(i,:)=0;
+            end
+        end
+%         X(:,2)=X(:,2)/max(X(:,2));
 %         X(:,3)=X(:,3)/max(X(:,3));
-%         figure(maxep+4*(rd-1)+3)
-%         title('聚类结果')
-% %         xlabel('normed VAR')
-% %         ylabel('CFR')
-%         idx = dbscan(X,0.1,5);
-%         for i=1:n
-%             if idx(i)==-1
-%                 scatter3(X(i,1),X(i,2),X(i,3),'r');
-%                 hold on;
-%             elseif idx(i)==2
-%                 scatter3(X(i,1),X(i,2),X(i,3),'b');
-%                 hold on;
-%             else
-%                 scatter3(X(i,1),X(i,2),X(i,3),'g');
-%                 hold on;
-%             end
-%         end
-%         figure(maxep+4*(rd-1)+4)
-%         title('实际情况')
-% %         xlabel('normed VAR')
-% %         ylabel('CFR')
-%         for i=1:n
-%             if N(i).AN
-%                 scatter3(X(i,1),X(i,2),X(i,3),'r')
-%                 hold on
-%             else
-%                 scatter3(X(i,1),X(i,2),X(i,3),'b')
-%                 hold on
-%             end
-%             if N(i).isabnormal
-%                 scatter3(X(i,1),X(i,2),X(i,3),'k','+');
-%                 hold on;
-%             end
-%             if ~N(i).ispath
-%                 scatter3(X(i,1),X(i,2),X(i,3),'k','*');
-%                 hold on;
-%             end
-%         end
-%         % 计算误检率
-%         numANc=0;
-%         numFANc=0;
-%         for i=1:n
-%             N(i).ANc=idx(i);
-%             if N(i).ANc==-1&&N(i).ispath&&~N(i).del
-%                 N(i).del=1;
-%                 numANc=numANc+1;
-%                 if ~N(i).AN
-%                     numFANc=numFANc+1;
-%                 end
-%             end
-%         end
-%         error=numFANc/numANc;
-%         fprintf('第%d个200轮检测正确率:%f\n',rd,1-error);
-%         % fprintf('第%d个200轮漏检率:%f',rd,1-error);
-%     end
+        figure(maxep+4*(rd-1)+3)
+        title('聚类结果')
+        if rd==1
+            idx=dbscan(X,0.1,6);
+        else
+            idx=dbscan(X,0.1,3);
+        end
+        for i=1:n
+            if ~N(i).del
+                if idx(i)==-1
+                    scatter3(X(i,1),X(i,2),X(i,3),'r');
+                    hold on;
+                elseif idx(i)==2
+                    scatter3(X(i,1),X(i,2),X(i,3),'b');
+                    hold on;
+                else
+                    scatter3(X(i,1),X(i,2),X(i,3),'g');
+                    hold on;
+                end
+            end
+        end
+        figure(maxep+4*(rd-1)+4)
+        title('实际情况')
+        for i=1:n
+            if ~N(i).del
+                if N(i).AN
+                    text(X(i,1),X(i,2),X(i,3),num2str(i));
+                    scatter3(X(i,1),X(i,2),X(i,3),'r')
+                    hold on
+                else
+                    scatter3(X(i,1),X(i,2),X(i,3),'b')
+                    hold on
+                end
+                if N(i).isabnormal
+                    scatter3(X(i,1),X(i,2),X(i,3),'k','+');
+                    hold on;
+                end
+                if ~N(i).ispath
+                    scatter3(X(i,1),X(i,2),X(i,3),'k','*');
+                    hold on;
+                end
+            end
+        end
+        % 计算误检率
+        numMissANc=0;
+        numAN=0;
+        for i=1:n
+            if idx(i)==-1&&N(i).ispath&&~N(i).del
+                N(i).del=1;
+                N(i).ANc=1;
+                numANc=numANc+1;
+                if ~N(i).AN
+                    numFANc=numFANc+1;
+                end
+            end
+            if N(i).AN&&N(i).ispath
+                numAN=numAN+1;
+                if ~N(i).ANc
+                    numMissANc=numMissANc+1;
+                end
+            end
+        end
+        error=numFANc/25;
+        fprintf('第%d个200轮误检率:%f\n',rd,error);
+        misserror=numMissANc/25;
+        fprintf('第%d个200轮漏检率:%f',rd,misserror);
+        ispath=[]; % 记录本轮筛选时ispath为1的节点(便于dbscantest程序判断)
+        for i=1:n
+            if N(i).ispath
+                ispath=[ispath,i];
+            end
+        end
+        N(n+1).ispath=[N(n+1).ispath;ispath]; % 存放在SN.ispath的第rd行
+    end
 end
