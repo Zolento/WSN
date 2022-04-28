@@ -1,13 +1,14 @@
 clc;
 clear all;
 close all;
+tic;
 %%
 r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
 load 'N.mat' N
-a=0.7;
-b=0.3;
+a=0.8;
+b=0.2;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
@@ -134,10 +135,10 @@ eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
 s=200; % 每s轮画一次图
 sr=200; % 每sr轮统计一次rpp(ICFR)
-maxep=400; % 运行的总轮数
+maxep=600; % 运行的总轮数
 rppsummary=-1*ones(n,maxep);
-numANc=0;
-numFANc=0;
+log=zeros(2,10);
+rd=0;
 for ep=1:maxep
     if mod(ep,s)==0
         figure(ep);
@@ -460,7 +461,7 @@ for ep=1:maxep
                                     N(v).r=N(v).r+prepklen;
                                     N(v).t=N(v).t+pklen;
                                     N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度(累计转发率)
-                                    N(v).ICFR=N(v).rpp;%pklen/prepklen; % 本轮转发率
+                                    N(v).ICFR=pklen/prepklen; % 本轮转发率
                                     if N(v).ICFR>1
                                         N(v).ICFR=1;
                                     end
@@ -472,7 +473,8 @@ for ep=1:maxep
                                 end
                             end
                         end
-                        prepklen=N(in).INnpklen*N(in).rpp; % 更新监督到的包长，作为下一个RP实际接受到的包长
+                        % prepklen=N(in).INnpklen*N(in).rpp; % 更新监督到的包长，作为下一个RP实际接受到的包长
+                        prepklen=pklen;
                         % IN之间也存在不完全转发，所以必须要用IN的rpp更新
                         N(in).E=N(in).E-prepklen*Et; % 发送给下一个IN或INrp
                     else
@@ -563,9 +565,12 @@ for ep=1:maxep
                 else
                     varsummary(i)=0;
                 end
-                X(i,1)=lastrpp(i);
-                X(i,2)=sqrt(varsummary(i))/(mean(tmp));% 
-                X(i,3)=mean(tmp);
+%                 X(i,1)=lastrpp(i);
+%                 X(i,2)=sqrt(varsummary(i))/(mean(tmp));% 
+%                 X(i,3)=mean(tmp);
+                X(i,1)=N(i).credit;
+                X(i,2)=varsummary(i);%mean(tmp);
+                X(i,3)=sqrt(varsummary(i))/(mean(tmp));% 
             else
                 X(i,:)=0;
             end
@@ -577,7 +582,7 @@ for ep=1:maxep
         if rd==1
             idx=dbscan(X,0.1,5);
         else
-            idx=dbscan(X,0.1,3);
+            idx=dbscan(X,0.1,5);
         end
         for i=1:n
             if ~N(i).del
@@ -613,23 +618,23 @@ for ep=1:maxep
         end
         % 计算误检率
         numMissANc=0;
+        numFANc=0;
         for i=1:n
             if idx(i)==-1&&N(i).ispath&&~N(i).del
                 N(i).del=1;
                 N(i).ANc=1;
-                numANc=numANc+1;
-                if ~N(i).AN
-                    numFANc=numFANc+1;
-                end
+            end
+            if N(i).ANc&&~N(i).AN
+                numFANc=numFANc+1;
             end
             if N(i).AN&&~N(i).ANc
                 numMissANc=numMissANc+1;
             end
         end
         error=numFANc/25;
-        fprintf('第%d个200轮误检率:%f\n',rd,error);
         misserror=numMissANc/25;
-        fprintf('第%d个200轮漏检率:%f',rd,misserror);
+        log(1,rd)=error;
+        log(2,rd)=misserror;
         ispath=[]; % 记录本轮筛选时ispath为1的节点(便于dbscantest程序判断)
         for i=1:n
             if N(i).ispath
@@ -638,4 +643,12 @@ for ep=1:maxep
         end
         N(n+1).ispath=[N(n+1).ispath;ispath]; % 存放在SN.ispath的第rd行
     end
+    if rd>0
+        for j=1:rd
+            fprintf('第%d个200轮累计误检率:%f\n',rd,log(1,rd));
+            fprintf('第%d个200轮累计漏检率:%f\n',rd,log(2,rd));
+        end
+    end
 end
+toc;
+fprintf('运行时间:%f',toc);
