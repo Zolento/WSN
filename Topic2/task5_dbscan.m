@@ -1,16 +1,18 @@
 clc;
 clear all;
 close all;
+tic;
 %%
 r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
 load 'N.mat' N
-a=0.5;
-b=0.5;
+a=0.8;
+b=0.2;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
+ANprop=0.1; % 恶意节点比例
 Rc=30; % 通信半径
 Rs=10; % 感应半径
 Eo=1; % 初始能量
@@ -24,21 +26,21 @@ ABN=[];
 onestep=[];
 er=sqrt(r*rand(1));
 etheta=2*pi*rand(1);
-% ex=er*cos(etheta);
-% ey=er*sin(etheta);
-ex=52;
-ey=93;
+ex=er*cos(etheta);
+ey=er*sin(etheta);
+% ex=52;
+% ey=93;
 abx=3; % 恶劣天气发生地点
 aby=50;
 %% 初始化1 需要提前固定的字段
 % AN=rand(1,n);
-while numAN<25
+while numAN<n*ANprop
     for i=1:n
         tmp=rand;
         if tmp<=0.05&&~N(i).AN
             N(i).AN=1;
             numAN=numAN+1;
-            if numAN>=25
+            if numAN>=n*ANprop
                 break;
             end
         end
@@ -132,12 +134,14 @@ end
 exinfer=sum(anchorreqnum.*anchorx)/sum(anchorreqnum); % 推断出的事件位置
 eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
-s=400; % 每s轮画一次图
+s=200; % 每s轮画一次图
 sr=200; % 每sr轮统计一次rpp(ICFR)
-maxep=400; % 运行的总轮数
+maxep=600; % 运行的总轮数
 rppsummary=-1*ones(n,maxep);
-numANc=0;
-numFANc=0;
+log=zeros(3,maxep); % 每一行分别用来保存每个ep或rd时的误检率，漏检率，网络吞吐量
+input=0;
+output=0;
+rd=0;
 for ep=1:maxep
     if mod(ep,s)==0
         figure(ep);
@@ -212,7 +216,9 @@ for ep=1:maxep
         if N(i).isabnormal
             N(i).rpp=N(i).rpp*0.5;
         end
-        N(i).ICFR=N(i).rpp;
+        %if ep==1
+            N(i).ICFR=N(i).rpp;
+        %end
     end
     for i=EN
         pklen=packlen;
@@ -418,12 +424,14 @@ for ep=1:maxep
             if N(i).flagpath
                 % 传输数据包
                 for rp=N(i).path
+                    Etmp=N(rp).E;
                     if rp~=n+1 % 不是SN
                         % rp行为
                         if rp~=i % 不是起始的事件节点
                             N(rp).E=N(rp).E-pklen*Er; % 接受
                         end
                         pklen=pklen*N(rp).rpp; % 选择性转发长度
+                        % pklen
                         N(rp).E=N(rp).E-pklen*Et; % 发送给IN
                         % IN行为
                         N(N(rp).IN).E=N(N(rp).IN).E-pklen*Er; % IN接收来自rp的长度
@@ -431,14 +439,19 @@ for ep=1:maxep
                         % rp行为
                         N(rp).E=N(rp).E-pklen*Et; % 选择性转发给下一个
                     end
+                    if N(rp).type==0
+                        input=input+packlen;
+                        N(rp).E=Etmp;
+                    end
                 end
+                output=output+pklen;
                 % IN结算转发率
                 for in=N(i).INpath
                     if in~=N(i).INpath(end) % 不是SN或者中继到SN的IN
-                        N(in).ispath=1;
                         if in~=N(i).INpath(1) % 不是起始的事件节点的IN
                             N(in).E=N(in).E-prepklen*Er; % 接受
                         else
+                            preINcredit=1;
                             prepklen=packlen; % 初始化前跳包长
                         end
                         pklen=N(in).INnpklen; % 读取监督的RP的转发包长
@@ -457,7 +470,13 @@ for ep=1:maxep
                                     N(v).r=N(v).r+prepklen;
                                     N(v).t=N(v).t+pklen;
                                     N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度(累计转发率)
-                                    N(v).ICFR=pklen/prepklen; % 本轮转发率
+                                    N(v).ICFR=pklen/(prepklen/preINcredit); % 本轮转发率
+                                    if isnan(N(v).ICFR)
+                                        pause(0.1);
+                                    end
+%                                     if N(v).isabnormal
+%                                         N(v).ICFR=N(v).rpp;
+%                                     end
                                     if N(v).ICFR>1
                                         N(v).ICFR=1;
                                     end
@@ -469,7 +488,14 @@ for ep=1:maxep
                                 end
                             end
                         end
+                        if ep>sr*rd+1
+                            preINcredit=mean(rppsummary(in,sr*rd+1:ep-1));
+                        else
+                            preINcredit=N(in).ICFR;
+                        end
+                        %preINcredit=N(in).rpp;
                         prepklen=N(in).INnpklen*N(in).rpp; % 更新监督到的包长，作为下一个RP实际接受到的包长
+                        % prepklen=pklen;
                         % IN之间也存在不完全转发，所以必须要用IN的rpp更新
                         N(in).E=N(in).E-prepklen*Et; % 发送给下一个IN或INrp
                     else
@@ -486,17 +512,31 @@ for ep=1:maxep
         end
     end
     for i=EN
-        if N(i).type~=0
-            N(i).type=0; % EN可能作为rp,先复原
-        end
+        N(i).type=-1; % EN可能作为rp,先复原
     end
+    log(3,ep)=output/input;
+    EN=[];
+    fprintf('========第%d轮结束========\n',ep);
+    er=sqrt(r*rand(1));
+    etheta=2*pi*rand(1);
+    ex=er*cos(etheta);
+    ey=er*sin(etheta);
+    flagdead=0;
     for i=1:n
         rppsummary(i,ep)=N(i).ICFR;
+        if (N(i).x-ex)^2+(N(i).y-ey)^2<=Rs^2&&N(i).E>0&&~N(i).ANc
+            N(i).type=0;
+            EN=[EN,i];
+        end
+        if N(i).E<=0
+            flagdead=1;
+        end
     end
-    ep
-    if sum(EN)==0
+    if flagdead
+        fprintf('第%d轮网络死亡\n',ep);
         break;
     end
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if mod(ep,sr)==0
         rd=floor(ep/sr);
         % 就是rppsummary的最后一列
@@ -506,40 +546,6 @@ for ep=1:maxep
         for i=1:n
             lastrpp(i)=N(i).credit;
         end
-%         figure(maxep+4*(rd-1)+1)
-%         title('记录的累计转发率分布')
-%         for i=1:n
-%             if ~N(i).del
-%                 if N(i).AN
-%                     scatter(i,lastrpp(i),'r')
-%                     hold on
-%                 else
-%                     scatter(i,lastrpp(i),'b')
-%                     hold on
-%                 end
-%                 if N(i).isabnormal
-%                     scatter(i,lastrpp(i),'k','+')
-%                     hold on
-%                 end
-%             end
-%         end
-%         figure(maxep+4*(rd-1)+2)
-%         title('理想的转发率平均值分布')
-%         for i=1:n
-%             if ~N(i).del
-%                 if N(i).AN
-%                     scatter(i,N(i).rppavg,'r')
-%                     hold on
-%                 else
-%                     scatter(i,N(i).rppavg,'b')
-%                     hold on
-%                 end
-%                 if N(i).isabnormal
-%                     scatter(i,N(i).rppavg,'k','+')
-%                     hold on
-%                 end
-%             end
-%         end
         % dbscan聚类
         for i=1:n
             tmp=[];
@@ -551,30 +557,35 @@ for ep=1:maxep
                         pretmp=rppsummaryslice(i,j);
                     end
                 end
-                if N(i).ispath
-                    varsummary(i)=var([1,tmp]);
-                else
-                    varsummary(i)=0;
-                end
-                X(i,1)=lastrpp(i);
-                X(i,2)=varsummary(i);% /(mean(tmp)+1e-3);
-                X(i,3)=mean(tmp);
+                varsummary(i)=var([1,tmp]);
+%                 X(i,1)=lastrpp(i);
+%                 X(i,2)=sqrt(varsummary(i))/(mean(tmp));% 
+%                 X(i,3)=mean(tmp);
+                X(i,1)=N(i).credit;
+                X(i,2)=sqrt(varsummary(i))/(mean(tmp));
+                X(i,3)=0;%sqrt(varsummary(i))/(mean(tmp));% 
             else
                 X(i,:)=0;
             end
         end
-%         X(:,2)=X(:,2)/max(X(:,2));
+        % X(:,2)=(X(:,2)-mean(X(:,2)))/var(X(:,2));
+        % X(:,2)=X(:,2)/max(X(:,2));
+        % X(:,3)=(X(:,3)-mean(X(:,3)))/var(X(:,3));
+        % X(:,3)=X(:,3)/max(X(:,3));
 %         X(:,3)=X(:,3)/max(X(:,3));
-        figure(maxep+4*(rd-1)+3)
-        title('聚类结果')
         if rd==1
-            idx=dbscan(X,0.1,6);
+            idx=dbscan(X,0.1,15);
         else
-            idx=dbscan(X,0.1,3);
+            idx=dbscan(X,0.1,20);
         end
+        figure(maxep+2*(rd-1)+1)
+        title('聚类结果')
+        xlabel('CFR')
+        ylabel('VAR')
+        zlabel('σ/μ')
         for i=1:n
             if ~N(i).del
-                if idx(i)==-1
+                if idx(i)==-1%&&N(i).ispath
                     scatter3(X(i,1),X(i,2),X(i,3),'r');
                     hold on;
                 elseif idx(i)==2
@@ -586,47 +597,51 @@ for ep=1:maxep
                 end
             end
         end
-        figure(maxep+4*(rd-1)+4)
+        figure(maxep+2*(rd-1)+2)
         title('实际情况')
+        xlabel('CFR')
+        ylabel('VAR')
+        zlabel('σ/μ')
         for i=1:n
-            if ~N(i).del
+            if ~N(i).del%&&N(i).ispath
                 if N(i).AN
                     text(X(i,1),X(i,2),X(i,3),num2str(i));
-                    scatter3(X(i,1),X(i,2),X(i,3),'r')
+                    h1=scatter3(X(i,1),X(i,2),X(i,3),'r');
                     hold on
                 else
-                    scatter3(X(i,1),X(i,2),X(i,3),'b')
+                    h2=scatter3(X(i,1),X(i,2),X(i,3),'b');
                     hold on
                 end
                 if N(i).isabnormal
-                    scatter3(X(i,1),X(i,2),X(i,3),'k','+');
-                    hold on;
-                end
-                if ~N(i).ispath
-                    scatter3(X(i,1),X(i,2),X(i,3),'k','*');
+                    h3=scatter3(X(i,1),X(i,2),X(i,3),'k+');
                     hold on;
                 end
             end
         end
+        legend([h1,h2,h3],'恶意节点','正常节点','异常节点')
         % 计算误检率
         numMissANc=0;
+        numFANc=0;
         for i=1:n
+            if ~N(i).ispath
+                N(i).del=0;
+                N(i).ANc=0;
+            end
             if idx(i)==-1&&N(i).ispath&&~N(i).del
                 N(i).del=1;
                 N(i).ANc=1;
-                numANc=numANc+1;
-                if ~N(i).AN
-                    numFANc=numFANc+1;
-                end
+            end
+            if N(i).ANc&&~N(i).AN
+                numFANc=numFANc+1;
             end
             if N(i).AN&&~N(i).ANc
                 numMissANc=numMissANc+1;
             end
         end
-        error=numFANc/25;
-        fprintf('第%d个200轮误检率:%f\n',rd,error);
+        error=numFANc/475;
         misserror=numMissANc/25;
-        fprintf('第%d个200轮漏检率:%f',rd,misserror);
+        log(1,rd)=error;
+        log(2,rd)=misserror;
         ispath=[]; % 记录本轮筛选时ispath为1的节点(便于dbscantest程序判断)
         for i=1:n
             if N(i).ispath
@@ -635,4 +650,25 @@ for ep=1:maxep
         end
         N(n+1).ispath=[N(n+1).ispath;ispath]; % 存放在SN.ispath的第rd行
     end
+    if rd>0
+        for j=1:rd
+            fprintf('第%d个200轮累计误检率:%f\n',j,log(1,j));
+            fprintf('第%d个200轮累计漏检率:%f\n',j,log(2,j));
+        end
+    end
 end
+if ep<maxep
+    log(1,ep:maxep)=log(1,ep);
+end
+toc;
+figure(maxep+2*rd+3)
+plot(1:maxep,log(3,:),'k')
+hold on
+for i=1:rd
+    if i<rd
+        plot([i*sr,(i+1)*sr],[log(1,i),log(1,i+1)],'r')
+        plot([i*sr,(i+1)*sr],[log(2,i),log(2,i+1)],'b')
+    end
+end
+xlabel('运行轮数')
+legend('网络吞吐量','误检率','漏检率')
