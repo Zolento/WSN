@@ -12,9 +12,12 @@ b=0.2;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
-ANprop=0.1; % 恶意节点比例
-ADprop=ANprop*0.3; % 使用isf检测时的阈值比例
+ANprop=0.25; % 恶意节点比例
+ADprop=ANprop*0.5; % 使用isf检测时的阈值比例
 ADlog=zeros(1,n);
+s=inf;%200; % 每s轮画一次图
+sr=200; % 每sr轮统计一次rpp(ICFR)
+maxep=4000; % 运行的总轮数
 Rc=30; % 通信半径
 Rs=10; % 感应半径
 Eo=1; % 初始能量
@@ -94,7 +97,7 @@ for i=1:n
     end
     if (N(i).x-ex)^2+(N(i).y-ey)^2<=Rs^2
         N(i).type=0;
-        N(i).E=inf; % 假设事件节点的能量很大
+        % N(i).E=inf; % 假设事件节点的能量很大
         EN=[EN,i];
     end
     if (N(i).x-abx)^2+(N(i).y-aby)^2<=Rc^2
@@ -136,9 +139,6 @@ end
 exinfer=sum(anchorreqnum.*anchorx)/sum(anchorreqnum); % 推断出的事件位置
 eyinfer=sum(anchorreqnum.*anchory)/sum(anchorreqnum);
 %% 寻找每一个节点的RP和IN
-s=200; % 每s轮画一次图
-sr=200; % 每sr轮统计一次rpp(ICFR)
-maxep=3000; % 运行的总轮数
 rppsummary=-1*ones(n,maxep);
 log=zeros(3,maxep); % 每一行分别用来保存每个ep或rd时的误检率，漏检率，网络吞吐量
 input=0;
@@ -337,7 +337,7 @@ for ep=1:maxep
                         N(rp).IN=IN;
                         preIN=N(rp).IN;
                         preRP=rp;
-                    else % 如果IN不能跟preIN通信(运行bfs)
+                    else % 如果IN不能跟preIN通信(运行bfs)N(i).path
                         S=[];
                         t=[];
                         for p=1:n
@@ -426,6 +426,7 @@ for ep=1:maxep
             end
             if N(i).flagpath
                 % 传输数据包
+                input=input+packlen;
                 for rp=N(i).path
                     Etmp=N(rp).E;
                     if rp~=n+1 % 不是SN
@@ -442,10 +443,10 @@ for ep=1:maxep
                         % rp行为
                         N(rp).E=N(rp).E-pklen*Et; % 选择性转发给下一个
                     end
-                    if N(rp).type==0
-                        input=input+packlen;
-                        N(rp).E=Etmp;
-                    end
+%                     if N(rp).type==0
+%                         input=input+packlen;
+%                         N(rp).E=Etmp;
+%                     end
                 end
                 output=output+pklen;
                 % IN结算转发率
@@ -458,11 +459,14 @@ for ep=1:maxep
                             prepklen=packlen; % 初始化前跳包长
                         end
                         pklen=N(in).INnpklen; % 读取监督的RP的转发包长
-    %                     for p=N(in).bfspath % 如果当前IN使用了INrp，还要用INrp的rpp更新RP实际接受到的包长
-    %                         if p~=in&&p~=preIN
-    %                             prepklen=prepklen*N(p).rpp;
-    %                         end
-    %                     end
+                        N(in).E=N(in).E-pklen*Er; % 接受
+                        for p=N(in).bfspath % 如果当前IN使用了INrp，还要用INrp的rpp更新RP实际接受到的包长
+                            if p~=in&&p~=preIN
+                                % prepklen=prepklen*N(p).rpp;
+                                N(p).E=N(p).E-prepklen*Er;
+                                N(p).E=N(p).E-prepklen*N(p).rpp*Et;
+                            end
+                        end
                         % 更新监督的RP或EN的信誉度
                         k=0;
                         for j=N(in).INn(:,1)
@@ -474,9 +478,6 @@ for ep=1:maxep
                                     N(v).t=N(v).t+pklen;
                                     N(v).credit=(N(v).t)/(N(v).r); % 更新信誉度(累计转发率)
                                     N(v).ICFR=pklen/(prepklen/preINcredit); % 本轮转发率
-                                    if isnan(N(v).ICFR)
-                                        pause(0.1);
-                                    end
 %                                     if N(v).isabnormal
 %                                         N(v).ICFR=N(v).rpp;
 %                                     end
@@ -526,7 +527,7 @@ for ep=1:maxep
     ey=er*sin(etheta);
     flagdead=0;
     for i=1:n
-        rppsummary(i,ep)=N(i).ICFR;
+        rppsummary(i,ep)=N(i).rpp;
         if (N(i).x-ex)^2+(N(i).y-ey)^2<=Rs^2&&N(i).E>0&&~N(i).ANc
             N(i).type=0;
             EN=[EN,i];
@@ -563,20 +564,42 @@ for ep=1:maxep
                 end
                 varsummary(i)=var([1,tmp]);
                 X(i,1)=N(i).credit;
-                X(i,2)=sqrt(varsummary(i))/(mean(tmp));
+                X(i,2)=sqrt(varsummary(i))/mean(tmp);%/sqrt(0.05*pi)*exp(-(N(i).credit-0.75)^2/0.05);
                 Data=[Data;X(i,1),X(i,2)];
                 ADLabels=[ADLabels;N(i).AN];
                 Index=[Index,i];
             end
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % run iForest
-        [AUC_results,idx]=runiforest(ADLabels,Data(:,mod(rd,2)+1),ADprop);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        idx=Index(idx');
-        for i=idx
-            N(i).ANc=1;
+        % run iForest or SVM
+        flagsvm=0;
+        if sum(ADlog(1:rd))>=1.1*n*ANprop
+            ADprop=0;
+            ADflag=0;
+        elseif sum(ADlog(1:rd))>=0.90*n*ANprop
+            flagsvm=1;
+        elseif sum(ADlog(1:rd))>=0.8*n*ANprop
+            ADprop=0.02;
         end
+        if ADflag
+            if flagsvm
+                load 'SVMModel.mat' SVMModel
+                label = predict(SVMModel,Data);
+                k=1;
+                for i=Index
+                    N(i).ANc=label(k);
+                    k=k+1;
+                end
+            else
+                [AUC_results,idx]=runiforest(ADLabels,Data(:,2),ADprop);
+                idx=Index(idx');
+                for i=idx
+                    N(i).ANc=1;
+                end
+            end
+        end
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
         figure(maxep+2*(rd-1)+1);
         xlabel('CFR');
         ylabel('σ/μ');
@@ -589,11 +612,16 @@ for ep=1:maxep
                 hold on;
             end
         end
-        title('isf分类结果');
-        
-        figure(maxep+2*(rd-1)+2);
+        if ~flagsvm
+            title('ISF分类结果');
+        else
+            title('SVM分类结果');
+            flagsvm=0;
+        end
         xlabel('CFR');
         ylabel('σ/μ');
+        
+        figure(maxep+2*(rd-1)+2);
         for i=Index
             if N(i).AN
                 text(X(i,1),X(i,2),num2str(i));
@@ -610,6 +638,8 @@ for ep=1:maxep
         end
         legend([h1,h2,h3],'恶意节点','正常节点','异常节点')
         title('实际情况');
+        xlabel('CFR');
+        ylabel('σ/μ');
         % 计算误检率
         numMissANc=0;
         numFANc=0;
@@ -640,16 +670,19 @@ for ep=1:maxep
             end
         end
         ADlog(rd)=size(idx,2);
-        ADprop=(n*ANprop-sum(ADlog(1:rd)))/size(Data,1);
-        if ADprop<=0
-            ADprop=0.05*n*ANprop/size(Data,1);
-        end
+%         ADprop=(n*ANprop-sum(ADlog(1:rd)))/size(Data,1);
+%         if ADprop<=0
+%             ADprop=-1;
+%         end
         N(n+1).ispath=[N(n+1).ispath;ispath]; % 存放在SN.ispath的第rd行
     end
     if rd>0
         for j=1:rd
             fprintf('第%d个200轮累计误检率:%f\n',j,log(1,j));
             fprintf('第%d个200轮累计漏检率:%f\n',j,log(2,j));
+        end
+        if ~ADflag
+            fprintf('检出数达标，停止检测\n');
         end
     end
 end

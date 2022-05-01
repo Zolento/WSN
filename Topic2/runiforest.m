@@ -4,7 +4,7 @@ function [AUC_results,idx]=runiforest(ADLabels,Data,ADprop)
 rounds = 10; % rounds of repeat
 % parameters for iForest
 NumTree = 100; % number of isolation trees
-NumSub = size(Data, 1); % subsample size
+NumSub = 256;%size(Data, 1); % subsample size
 NumDim = size(Data, 2); % do not perform dimension sampling 
 auc = zeros(rounds, 1);
 mtime = zeros(rounds, 2);

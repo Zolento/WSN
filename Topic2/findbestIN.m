@@ -10,7 +10,7 @@ function [idxin,Win,INcds]=findbestIN(targetnodes,Win,INcds,N,Eo,i)
                 end
             end
         end
-        if (N(j).type==-1||(N(j).type==2&&flag))&&N(j).E>0&&N(i).ANc~=1
+        if (N(j).type==-1||(N(j).type==2&&flag))&&N(j).E>0&&N(i).ANc~=1&&N(j).ANc~=1
             Win=[Win,0.5*N(j).credit/5+0.5*N(j).E/Eo];
             INcds=[INcds,j];
         end
