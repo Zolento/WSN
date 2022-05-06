@@ -7,12 +7,12 @@ r=40000/pi;
 rch=r/2;% 簇首成簇半径
 %%
 load 'N.mat' N
-a=0.8;
-b=0.2;
+a=0.7;
+b=0.3;
 c=0.1;
 p=0.08; % 簇首占比
 n=500;
-ANprop=0.25; % 恶意节点比例
+ANprop=0.05; % 恶意节点比例
 ADprop=ANprop*0.5; % 使用isf检测时的阈值比例
 ADlog=zeros(1,n);
 s=inf;%200; % 每s轮画一次图
@@ -616,6 +616,8 @@ for ep=1:maxep
             title('ISF分类结果');
         else
             title('SVM分类结果');
+            sv = SVMModel.SupportVectors;
+            plot(sv(:,1),sv(:,2),'ko','MarkerSize',10)
             flagsvm=0;
         end
         xlabel('CFR');
